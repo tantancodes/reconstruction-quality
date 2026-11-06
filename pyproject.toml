@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bd3d-quality"
+version = "0.1.0"
+description = "Traceable archaeological photogrammetry experiments and reference agreement"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "scipy>=1.14,<2"]
+
+[project.optional-dependencies]
+local = ["opencv-python-headless>=4.10,<5"]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+bd3d-quality = "bd3d_quality.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

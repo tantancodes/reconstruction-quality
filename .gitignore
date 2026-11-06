@@ -1,0 +1,16 @@
+.venv*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.env
+.DS_Store
+experiments/*
+!experiments/README.md
+results/*
+!results/README.md
+*.psx
+*.psz
+*.files/

@@ -1,0 +1,119 @@
+"""Argparse CLI; all scientific outputs are explicit files, never implicit reuse."""
+import argparse
+import json
+import sys
+from pathlib import Path
+from .config import ReconstructionConfig
+from .manifests import create_manifest, validate_manifest
+from .provenance import read_json, write_json, sha256_file
+
+
+def parser():
+    p = argparse.ArgumentParser(prog='bd3d-quality', description='Reproducible photogrammetry research (no predictive modeling)')
+    sub = p.add_subparsers(dest='command', required=True)
+    m = sub.add_parser('manifest', help='Create, inspect or validate a portable image manifest')
+    ms = m.add_subparsers(dest='action', required=True)
+    c = ms.add_parser('create', help='Recursively hash and verify supported images, sorted by relative path')
+    c.add_argument('--root', required=True, type=Path)
+    c.add_argument('--dataset-id', required=True)
+    c.add_argument('--description', default='')
+    c.add_argument('--config', type=Path, help='JSON effective reconstruction settings')
+    c.add_argument('--output', required=True, type=Path)
+    for action in ['inspect', 'validate']:
+        v = ms.add_parser(action)
+        v.add_argument('manifest', type=Path)
+        if action == 'validate':
+            v.add_argument('--root', required=True, type=Path, help='Dataset root for hash and image decoding validation')
+            v.add_argument('--output', type=Path, help='Optional validation JSON')
+    f = sub.add_parser('features', help='CPU image and pair descriptors')
+    fs = f.add_subparsers(dest='action', required=True)
+    for action in ['extract', 'match']:
+        e = fs.add_parser(action)
+        e.add_argument('manifest', type=Path)
+        e.add_argument('--root', required=True, type=Path)
+        e.add_argument('--output', required=True, type=Path)
+        e.add_argument('--max-dimension', type=int, default=1600)
+    r = sub.add_parser('reconstruct', help='Run licensed Metashape 2.2.x with fresh project or verified resume')
+    r.add_argument('manifest', type=Path)
+    r.add_argument('--root', type=Path, required=True)
+    r.add_argument('--output', type=Path, required=True, help='New run directory (existing only with --resume)')
+    r.add_argument('--resume', action='store_true')
+    g = sub.add_parser('geometry', help='Reference-relative mesh agreement')
+    gs = g.add_subparsers(dest='action', required=True)
+    gc = gs.add_parser('compare', help='OBJ triangle surfaces: rigid ICP, scale diagnostics and QC')
+    gc.add_argument('candidate', type=Path)
+    gc.add_argument('reference', type=Path)
+    gc.add_argument('--reference-id', required=True)
+    gc.add_argument('--units', required=True, help='Explicit common coordinate units (e.g. mm or arbitrary_shared)')
+    gc.add_argument('--sample-count', type=int, default=10000)
+    gc.add_argument('--output', required=True, type=Path)
+    report = sub.add_parser('report', help='Summarize a condition and consolidate compatible summaries')
+    rs = report.add_subparsers(dest='action', required=True)
+    summary = rs.add_parser('summarize')
+    summary.add_argument('manifest', type=Path)
+    for key in ['features', 'matches', 'run', 'geometry']:
+        summary.add_argument('--' + key, type=Path)
+    summary.add_argument('--output', required=True, type=Path)
+    build = rs.add_parser('build')
+    build.add_argument('summaries', nargs='+', type=Path)
+    build.add_argument('--output', required=True, type=Path, help='New report directory')
+    return p
+
+
+def main(argv=None):
+    p = parser()
+    a = p.parse_args(argv)
+    try:
+        if a.command == 'manifest':
+            if a.action == 'create':
+                config = ReconstructionConfig(**read_json(a.config)) if a.config else ReconstructionConfig()
+                result = create_manifest(a.root, a.dataset_id, config, a.description)
+                write_json(a.output, result)
+            elif a.action == 'inspect':
+                result = read_json(a.manifest)
+            else:
+                result = validate_manifest(read_json(a.manifest), a.root)
+                if a.output:
+                    write_json(a.output, result)
+                print(json.dumps(result, indent=2))
+                return 0 if result['valid'] else 2
+        elif a.command == 'features':
+            if a.action == 'extract':
+                from .image_features import features_for_manifest
+                result = features_for_manifest(read_json(a.manifest), a.root, a.max_dimension)
+            else:
+                from .local_match_features import match_manifest
+                result = match_manifest(read_json(a.manifest), a.root, a.max_dimension)
+            write_json(a.output, result)
+        elif a.command == 'reconstruct':
+            from .metashape_runner import run_reconstruction
+            result = run_reconstruction(read_json(a.manifest), a.root, a.output, resume=a.resume)
+        elif a.command == 'geometry':
+            from .geometry_quality import compare_geometry
+            result = compare_geometry(a.candidate, a.reference, reference_id=a.reference_id,
+                                      units=a.units, sample_count=a.sample_count)
+            write_json(a.output, result)
+            print(json.dumps({'status': result['status'], 'output': str(a.output)}))
+            return 0 if result['status'] == 'complete' else 2
+        elif a.action == 'summarize':
+            from .reporting import summarize
+            records, sources = {}, []
+            for key in ['features', 'matches', 'run', 'geometry']:
+                path = getattr(a, key)
+                if path:
+                    records[key] = read_json(path)
+                    sources.append({'role': key, 'filename': path.name, 'sha256': sha256_file(path)})
+            result = summarize(read_json(a.manifest), sources=sources, **records)
+            write_json(a.output, result)
+        else:
+            from .reporting import build_report
+            result = build_report(a.summaries, a.output)
+        print(json.dumps({'status': 'ok', 'output': str(getattr(a, 'output', '')), 'result': result if a.command == 'manifest' and a.action == 'inspect' else None}, indent=2))
+        return 0
+    except (OSError, ValueError, TypeError, KeyError, RuntimeError, ImportError) as exc:
+        print(f'bd3d-quality: {type(exc).__name__}: {exc}', file=sys.stderr)
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

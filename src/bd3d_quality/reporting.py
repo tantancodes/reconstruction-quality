@@ -15,13 +15,16 @@ def summarize(manifest, *, features=None, matches=None, run=None, geometry=None,
     for record in [features, matches, geometry]:
         if record and record.get('settings_signature') != digest(record['settings']):
             raise ValueError('analysis settings signature mismatch')
+    if run and run.get('execution_protocol') != manifest.get('execution_protocol'):
+        raise ValueError('run execution protocol mismatch')
     if run and run['configuration'] != manifest['configuration']:
         raise ValueError('run configuration mismatch')
     if geometry:
         if not run or geometry['candidate']['sha256'] not in [a['sha256'] for a in run['artifacts'] if a['path'].endswith('.obj')]:
             raise ValueError('geometry candidate is not a recorded raw mesh artifact')
     row = {'experiment_id': eid, 'dataset_id': manifest['dataset_id'],
-           'configuration_signature': digest(manifest['configuration']),
+           'configuration_signature': digest(manifest['configuration']) if 'execution_protocol' not in manifest else
+               digest({'configuration': manifest['configuration'], 'execution_protocol': manifest['execution_protocol']}),
            'profile': manifest['configuration']['profile'], 'image_count': manifest['image_count'],
            'status': run['status'] if run else 'not_reconstructed', 'run_id': run['run_id'] if run else None}
     if features:

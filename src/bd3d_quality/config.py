@@ -38,3 +38,24 @@ class ReconstructionConfig:
 
     def to_dict(self):
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class ResourceProtocol:
+    """Versioned low-cost reconstruction algorithm settings, included in identity."""
+    version: int = 1
+    max_neighbors: int = 4
+    workitem_size_cameras: int = 2
+    max_workgroup_size: int = 10
+    mesh_face_count_custom: int = 0
+    mesh_trimming_radius: int = 0
+    build_preview_texture: bool = False
+
+    def __post_init__(self):
+        if self.version != 1:
+            raise ValueError('unsupported resource protocol')
+        for key in ['max_neighbors', 'workitem_size_cameras', 'max_workgroup_size']:
+            if type(getattr(self, key)) is not int or getattr(self, key) < 1:
+                raise ValueError(f'invalid {key}')
+        if self.mesh_face_count_custom != 0 or self.mesh_trimming_radius != 0 or self.build_preview_texture is not False:
+            raise ValueError('resource protocol preserves untrimmed, undecimated raw mesh without preview textures')

@@ -2,10 +2,11 @@
 from __future__ import annotations
 import importlib
 import os
+import shutil
 from pathlib import Path
 import time
 from uuid import uuid4
-from .config import ReconstructionConfig
+from .config import ReconstructionConfig, ResourceProtocol
 from .manifests import require_valid, safe_path
 from .provenance import now, write_json, read_json, sha256_file, software_versions, digest
 from .reconstruction_metrics import collect_metrics
@@ -21,10 +22,14 @@ def project_fingerprints(output):
     return {p.relative_to(output).as_posix(): sha256_file(p) for p in paths}
 
 
-def run_reconstruction(manifest, root, output, *, resume=False, api=None):
+def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_checkpoint=None):
     require_valid(manifest, root)
     output = Path(output).resolve()
     config = ReconstructionConfig(**manifest['configuration'])
+    protocol = ResourceProtocol(**manifest['execution_protocol']) if 'execution_protocol' in manifest else None
+    if seed_checkpoint is not None and resume:
+        raise ValueError('seed checkpoint and resume are mutually exclusive')
+    seed_state = verify_seed(seed_checkpoint, manifest, root) if seed_checkpoint is not None else None
     if resume:
         if not output.is_dir():
             raise ValueError('resume directory does not exist')
@@ -70,6 +75,12 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
                          (['mesh_generation'] if config.profile == 'mesh' else []),
                      'skipped_stages': ['refinement', 'cleanup', 'texture'],
                      'limitations': ['No refinement or mesh postprocessing performed; raw outputs preserved.']}
+            if seed_state:
+                state['parent_checkpoint'] = {'run_id': seed_state['run_id'],
+                    'experiment_id': seed_state['experiment_id'], 'project_files': seed_state['project_files']}
+            if protocol:
+                state['execution_protocol'] = manifest['execution_protocol']
+                state['planned_stages'].insert(1, 'depth_maps')
             write_json(output / 'manifest.json', manifest)
             write_json(output / 'run.json', state)
         api = api or importlib.import_module('Metashape')
@@ -84,7 +95,11 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
             api.app.gpu_mask = 0
             api.app.cpu_enable = True
         doc = api.Document()
-        if resume:
+        if seed_state:
+            source = Path(seed_checkpoint)
+            shutil.copy2(source / 'project.psx', output / 'project.psx')
+            shutil.copytree(source / 'project.files', output / 'project.files')
+        if resume or seed_state:
             doc.open(str(output / 'project.psx'))
             if len(doc.chunks) != 1:
                 raise ValueError('checkpoint must contain exactly one chunk')
@@ -98,9 +113,11 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
             chunk.addPhotos([str(safe_path(root, e['path'])) for e in manifest['images']])
         completed = {s['stage'] for s in state['stages']}
 
-        def checkpoint(stage, duration):
+        def checkpoint(stage, duration, operation_seconds=None):
             snapshot = {'stage': stage, 'recorded_at': now(), 'runtime_seconds': duration,
                         **collect_metrics(chunk, manifest['image_count'])}
+            if operation_seconds is not None:
+                snapshot['operation_seconds'] = operation_seconds
             metric_path = output / f'metrics-{stage}.json'
             write_json(metric_path, snapshot)
             state['artifacts'].append({'path': metric_path.name, 'sha256': sha256_file(metric_path),
@@ -119,6 +136,9 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
                 raise RuntimeError(f'empty/missing raw export: {path}')
             state['artifacts'].append({'path': path, 'sha256': sha256_file(p), 'size_bytes': p.stat().st_size})
 
+        if seed_state:
+            snapshot = checkpoint('initial_alignment', 0.0, {'inherited_alignment_runtime': seed_state['stages'][0]['runtime_seconds']})
+            completed.add('initial_alignment')
         if 'initial_alignment' not in completed:
             t = time.perf_counter()
             chunk.matchPhotos(downscale=config.match_downscale, keypoint_limit=config.keypoint_limit,
@@ -140,22 +160,43 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
                 format=api.PointCloudFormatPLY))
         if config.profile in {'dense', 'mesh'} and 'dense_reconstruction' not in completed:
             t = time.perf_counter()
-            chunk.buildDepthMaps(downscale=config.depth_downscale, filter_mode=getattr(api, config.depth_filter))
+            depth_options = {} if protocol is None else {
+                'max_neighbors': protocol.max_neighbors, 'workitem_size_cameras': protocol.workitem_size_cameras,
+                'max_workgroup_size': protocol.max_workgroup_size, 'subdivide_task': True}
+            if protocol and 'depth_maps' in completed:
+                depth_seconds = 0.0  # Existing depth checkpoint reused, no rebuilding.
+            else:
+                chunk.buildDepthMaps(downscale=config.depth_downscale, filter_mode=getattr(api, config.depth_filter), **depth_options)
+                depth_seconds = time.perf_counter() - t
+                if protocol:
+                    checkpoint("depth_maps", depth_seconds)
+            cloud_started = time.perf_counter()
             chunk.buildPointCloud()
+            cloud_seconds = time.perf_counter() - cloud_started
             if (getattr(chunk.point_cloud, "point_count", 0) or 0) <= 0:
                 raise RuntimeError("dense reconstruction returned no points")
+            export_started = time.perf_counter()
             export('raw-dense.ply', lambda: chunk.exportPointCloud(
                 str(output / 'raw-dense.ply'), source_data=api.PointCloudData, format=api.PointCloudFormatPLY))
-            checkpoint('dense_reconstruction', time.perf_counter() - t)
+            checkpoint('dense_reconstruction', time.perf_counter() - t,
+                       {'depth_maps': depth_seconds, 'point_cloud': cloud_seconds,
+                        'dense_export': time.perf_counter() - export_started})
         if config.profile == 'mesh' and 'mesh_generation' not in completed:
             t = time.perf_counter()
+            model_options = {} if protocol is None else {
+                'face_count_custom': 0, 'trimming_radius': 0, 'build_texture': False,
+                'workitem_size_cameras': protocol.workitem_size_cameras,
+                'max_workgroup_size': protocol.max_workgroup_size}
             chunk.buildModel(source_data=api.DepthMapsData, surface_type=api.Arbitrary,
-                             interpolation=api.EnabledInterpolation, face_count=api.HighFaceCount)
+                             interpolation=api.EnabledInterpolation, face_count=api.CustomFaceCount if protocol else api.HighFaceCount, **model_options)
             if chunk.model is None or not len(chunk.model.faces):
                 raise RuntimeError('mesh generation returned no faces')
+            build_seconds = time.perf_counter() - t
+            export_started = time.perf_counter()
             export('raw-mesh.obj', lambda: chunk.exportModel(str(output / 'raw-mesh.obj'),
                     format=api.ModelFormatOBJ, save_texture=False, save_normals=True, save_colors=False))
-            checkpoint('mesh_generation', time.perf_counter() - t)
+            checkpoint('mesh_generation', time.perf_counter() - t,
+                       {'mesh_build': build_seconds, 'mesh_export': time.perf_counter() - export_started})
         state['status'] = 'complete'
         state['finished_at'] = now()
         state['runtime_seconds_this_invocation'] = time.perf_counter() - started
@@ -173,3 +214,28 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None):
             api.app.gpu_mask = previous_gpu
             api.app.cpu_enable = previous_cpu
         lock.unlink(missing_ok=True)
+
+
+def verify_seed(source, manifest, root):
+    """Verify closed, complete alignment-only parent; never modify its files."""
+    source = Path(source).resolve()
+    if (source / '.run.lock').exists() or (source / 'project.files/lock').exists():
+        raise ValueError('seed checkpoint is locked')
+    state = read_json(source / 'run.json')
+    parent = read_json(source / 'manifest.json')
+    require_valid(parent, root)
+    if state['status'] != 'complete' or [s['stage'] for s in state['stages']] != ['initial_alignment']:
+        raise ValueError('seed must be a complete alignment-only checkpoint')
+    if parent['experiment_id'] != state['experiment_id'] or parent['configuration'] != state['configuration']:
+        raise ValueError('seed ledger identity/settings mismatch')
+    if parent['images'] != manifest['images'] or parent['dataset_id'] != manifest['dataset_id']:
+        raise ValueError('seed input provenance mismatch')
+    for k in ['match_downscale', 'keypoint_limit', 'tiepoint_limit', 'generic_preselection', 'reference_preselection']:
+        if parent['configuration'][k] != manifest['configuration'][k]:
+            raise ValueError('seed alignment settings mismatch')
+    if state['project_files'] != project_fingerprints(source):
+        raise ValueError('seed project content mismatch')
+    for a in state['artifacts']:
+        if sha256_file(source / a['path']) != a['sha256']:
+            raise ValueError('seed artifact mismatch')
+    return state

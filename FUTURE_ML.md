@@ -22,3 +22,10 @@ A future extension may support repeated-run tables, formal descriptive analysis,
 confidence intervals, and carefully validated models under a separate user-led
 research stage. This repository currently contains no predictive modeling,
 training, inference, PyTorch, TensorFlow, scikit-learn or XGBoost dependency.
+
+Current readiness: blocked before newly validated dense/mesh generation and bounded
+pilot collection. Three explicitly archived, one-object observations are available
+with image/pair measurements and reconstructed-reference agreement; they are not
+independent examples or validated physical-accuracy targets. Baseline self-agreement
+must be excluded from target-based claims. No training should be presented as the
+next completed stage until the missing reconstruction and data prerequisites pass.

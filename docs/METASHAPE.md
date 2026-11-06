@@ -33,3 +33,12 @@ stops; modifying project files breaks future verification.
 
 Real dense/mesh processing can take substantial memory/time. Unit mocks exercise
 call flow and failure gates, not numerical reconstruction or geometry fidelity.
+
+The optional resource protocol explicitly disables preview texture generation and
+mesh trimming, and uses CustomFaceCount=0 to skip automatic decimation. Agisoft
+support describes that convention in its [decimation guidance](https://www.agisoft.com/forum/index.php?topic=10702.0).
+The installed 2.2.1 method docstrings were inspected for downscale, max_neighbors,
+work-item and work-group controls. The CPU worker count could not be enforced by
+OpenMP variables alone, so the watchdog records that request and independently
+limits process run duty cycle. See CONTROLLED_EXPERIMENTS.md and VALIDATION.md
+for actual attempts and resource stops; these are not successful dense/mesh runs.

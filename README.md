@@ -158,3 +158,43 @@ and [future statistical/ML work](FUTURE_ML.md). Optional plots and mesh
 postprocessing are deliberately outside the initial implementation. Never commit
 private photos, archaeological geometry, credentials, environments or generated
 research results. Publication instructions are in [GitHub setup](docs/PUBLISHING.md).
+
+## Resource-safe reconstruction and controlled pilot
+
+For a 16 GB laptop, use the watchdog in `bd3d_quality.resource_monitor` rather than
+launching the original-raster mesh profile unattended. Its macOS pressure/swap,
+RSS, runtime, output-size and CPU-activity gates stop its own child process without
+deleting evidence. Metashape may override OpenMP worker requests; the watchdog
+also uses a 20% process run duty cycle. These are sampled safeguards, not hard
+kernel memory or storage limits. Stopped runs may retain stale lock files; preserve
+them and use a fresh output directory.
+
+A versioned `execution_protocol` is included in condition identity when present.
+It specifies four depth neighbors, small work groups, no mesh trimming,
+CustomFaceCount=0 (no automatic decimation), and no preview textures. Original
+manifests without this protocol retain their existing identity and behavior.
+`reconstruct --seed-checkpoint PATH` verifies an alignment-only parent's manifest,
+project and artifact hashes, then copies its project into a new output directory.
+Changing raster resolution requires an independently aligned derivative condition;
+it is never treated as the original checkpoint's condition.
+
+`examples/prepare_low_resolution.py` creates lossless, EXIF-oriented derivatives
+and a source-hash/derivation ledger. `experiment_design.py` defines deterministic
+subsets with explicit overlap/dependence metadata. `examples/run_bounded_pilot.py`
+requires a successful monitored baseline, records a measured-cost budget before
+execution, and runs at most three conditions sequentially. Geometry export checks
+use `examples/validate_exports.py` in an interpreter with Open3D installed; Open3D
+is not a core package dependency and no ML extras are needed.
+
+See [controlled experiment protocol](docs/CONTROLLED_EXPERIMENTS.md) for settings,
+selection strategies, cancellation rules, pre-execution budgets and scientific
+limitations. The original 38-image historical subset remains unresolved; newly
+sampled 38-image conditions are explicitly distinct.
+
+Current continuation outcome: **resource-blocked; no newly completed dense/mesh
+validation or new pilot executions**. The safety gates stopped original-raster and
+derivative attempts on swap growth or timeout. A separately labeled archival
+stratum now contains three real mesh observations with Open3D checks, image-hash
+joins and reference-relative geometry measurements. These do not establish new-run
+success or ground-truth accuracy. Latest automated suite: **74 passed**. See the
+[actual measurements and remaining prerequisites](docs/VALIDATION.md#resource-safe-pre-ml-continuation--2026-11-06).

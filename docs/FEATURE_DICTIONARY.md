@@ -57,3 +57,11 @@ Invalid geometry comparisons have `metrics: null` and explicit flags. `status`,
 identity fields, configuration/feature/software signatures, reference hashes and
 run IDs are metadata, not numeric scientific features. CSV blank = missing, never
 zero. Each generated report includes a field index pointing to these definitions.
+
+Resource protocol additions: `operation_seconds` separates depth-map generation,
+point-cloud generation, export, and mesh generation. `parent_checkpoint` and
+`continuation_of` identify copied/inherited stages; inherited alignment times
+must not be counted as processing repeated in the continuation. Resource traces
+record system pressure levels, system-wide swap used, sampled process RSS, sampled
+CPU, wall elapsed time and output bytes. RSS is not peak physical memory or total
+process footprint; sampled maxima are lower bounds on instantaneous peaks.

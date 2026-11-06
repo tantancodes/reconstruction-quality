@@ -2,14 +2,17 @@
 from pathlib import Path, PurePosixPath
 import re
 from PIL import Image
-from .config import ReconstructionConfig
+from .config import ReconstructionConfig, ResourceProtocol
 from .provenance import digest, now, sha256_file, software_versions
 
 IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.tif', '.tiff', '.png'}
 
 
 def identity_payload(m):
-    return {k: m[k] for k in ['schema_version', 'dataset_id', 'images', 'image_count', 'configuration']}
+    payload = {k: m[k] for k in ['schema_version', 'dataset_id', 'images', 'image_count', 'configuration']}
+    if 'execution_protocol' in m:
+        payload['execution_protocol'] = m['execution_protocol']
+    return payload
 
 
 def experiment_identity(m):
@@ -57,6 +60,9 @@ def validate_manifest(m, root=None):
     try:
         if m['schema_version'] != 1 or not isinstance(m['dataset_id'], str) or not m['dataset_id'].strip():
             raise ValueError('invalid schema or dataset ID')
+        if 'execution_protocol' in m:
+            if asdict_protocol(m['execution_protocol']) != m['execution_protocol']:
+                raise ValueError('execution protocol must include all settings')
         config = ReconstructionConfig(**m['configuration'])
         if config.to_dict() != m['configuration']:
             raise ValueError('configuration must include all effective settings')
@@ -92,3 +98,8 @@ def require_valid(m, root=None):
     if not result['valid']:
         raise ValueError('; '.join(result['errors']))
     return result
+
+
+def asdict_protocol(value):
+    from dataclasses import asdict
+    return asdict(ResourceProtocol(**value))

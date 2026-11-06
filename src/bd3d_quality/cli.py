@@ -38,6 +38,7 @@ def parser():
     r.add_argument('--root', type=Path, required=True)
     r.add_argument('--output', type=Path, required=True, help='New run directory (existing only with --resume)')
     r.add_argument('--resume', action='store_true')
+    r.add_argument('--seed-checkpoint', type=Path, help='Copy verified alignment checkpoint into a fresh run')
     g = sub.add_parser('geometry', help='Reference-relative mesh agreement')
     gs = g.add_subparsers(dest='action', required=True)
     gc = gs.add_parser('compare', help='OBJ triangle surfaces: rigid ICP, scale diagnostics and QC')
@@ -87,7 +88,7 @@ def main(argv=None):
             write_json(a.output, result)
         elif a.command == 'reconstruct':
             from .metashape_runner import run_reconstruction
-            result = run_reconstruction(read_json(a.manifest), a.root, a.output, resume=a.resume)
+            result = run_reconstruction(read_json(a.manifest), a.root, a.output, resume=a.resume, seed_checkpoint=a.seed_checkpoint)
         elif a.command == 'geometry':
             from .geometry_quality import compare_geometry
             result = compare_geometry(a.candidate, a.reference, reference_id=a.reference_id,

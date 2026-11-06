@@ -198,3 +198,14 @@ stratum now contains three real mesh observations with Open3D checks, image-hash
 joins and reference-relative geometry measurements. These do not establish new-run
 success or ground-truth accuracy. Latest automated suite: **74 passed**. See the
 [actual measurements and remaining prerequisites](docs/VALIDATION.md#resource-safe-pre-ml-continuation--2026-11-06).
+
+## Lightweight archival table (no reconstruction)
+
+The reviewed array-ready dataset is `results/pytorch-ready-archival-v2/`: **3 archival
+observations, 2 provisional non-self reference labels, 1 object group**. It includes
+a CSV/JSON table, plain float32 NumPy arrays with boolean masks, explicit input-only
+and post-refinement feature lists, target definitions, file/row provenance hashes,
+and a leakage/dependence audit. Baseline self-comparison targets are masked; physical
+accuracy and dense-point counts are missing. No train/test split or model is fitted.
+It is format-ready, not statistically training-ready. See
+[dataset columns, verification, and remaining blockers](docs/TABULAR_DATASET.md).

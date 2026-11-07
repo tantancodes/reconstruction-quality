@@ -153,3 +153,14 @@ def test_optimizer_settings_change_stratum(record):
     b=second_record(record);b['optimization_configuration']={'fit_parameters':'different'}
     with pytest.raises(ValueError,match='incompatible'):
         audit_split([record,b],{record['record_id']:'train',b['record_id']:'test'})
+
+
+def test_saved_project_state_is_not_counted_as_an_execution_report(record,tmp_path):
+    record.update(observation_unit='saved_project_state',source_category='priority_drive_project')
+    record['label'].update(rmse_pixels=None,status='missing')
+    build_dataset([record],tmp_path/'out')
+    r=read_json(tmp_path/'out/readiness.json')
+    assert r['all_historical']['documented_records']==1
+    assert r['all_historical']['documented_runs']==0
+    assert r['priority_drive_collections']['saved_project_states']==1
+    assert r['model_input_eligible_rows']==0

@@ -1,5 +1,13 @@
 # Historical Metashape reprojection-error dataset — 2026-11-06
 
+**Continuation:** [the label-recovery audit](HISTORICAL_ALIGNMENT_RECOVERY.md)
+supersedes the readiness counts below. The current local bundle is
+`results/historical-alignment-recovered-v2/`: 33 verified historical labels,
+including 29 newly recovered local labels; all added labels are from ARF Dog.
+PAHMA 5-1405 now has inspected small project metadata but no verified pixel RMSE.
+Strict-ready rows remain zero. The account below documents the preserved
+`d2ba5bb` checkpoint; its no-binary-download statement applies to that earlier phase.
+
 ## Research question and boundaries
 
 Can image-derived features predict Metashape's reprojection RMS in pixels **before

@@ -135,7 +135,8 @@ def build_dataset(records,output,*,inventory_scope=None):
         feature_link=r['image_provenance_status']=='verified_hash_manifest'
         feature_ready.append(feature_link)
         usable=verified and feature_link and r.get('image_features') is not None and all(v is not None for v in r['image_features'].values()) and r.get('configuration_status')=='verified' and r.get('session_status')=='verified'
-        rows.append({'record_id':r['record_id'],'artifact_id':r['artifact_id'],'artifact_group_id':r['artifact_group_id'],
+        rows.append({'record_id':r['record_id'],'observation_unit':r.get('observation_unit','alignment_run_report'),
+            'artifact_id':r['artifact_id'],'artifact_group_id':r['artifact_group_id'],
             'acquisition_session_id':r.get('acquisition_session_id'),'session_status':r.get('session_status'),
             'reconstruction_run_id':r['reconstruction_run_id'],'source_image_set_id':r.get('source_image_set_id'),
             'image_count':r['image_count'],'image_provenance_status':r['image_provenance_status'],
@@ -168,14 +169,17 @@ def build_dataset(records,output,*,inventory_scope=None):
             'No aligned-camera/tie-point counts, camera poses, mesh properties or outcomes enter X_pre.',
             'For reprojection RMSE, the archival 50-image run is a legitimate nonzero label, not a self-comparison target.']})
     def counts(items):
-        return {'documented_runs':len(items),'verified_rmse_labels':sum(r['label']['status'] in {'document_verified','computed_historical_verified'} for r in items),
+        return {'documented_records':len(items),
+            'documented_runs':sum(r.get('observation_unit')!='saved_project_state' for r in items),
+            'saved_project_states':sum(r.get('observation_unit')=='saved_project_state' for r in items),
+            'verified_rmse_labels':sum(r['label']['status'] in {'document_verified','computed_historical_verified'} for r in items),
             'verified_matching_image_sets':sum(r['image_provenance_status']=='verified_hash_manifest' for r in items),
             'ready_for_feature_extraction_or_cache_reuse':sum(r['image_provenance_status']=='verified_hash_manifest' for r in items),
             'documented_artifact_groups':len({r['artifact_group_id'] for r in items}),
             'verified_acquisition_sessions':len({r['acquisition_session_id'] for r in items if r.get('acquisition_session_id') and r.get('session_status')=='verified'}),
             'documented_or_inferred_sessions':len({r['acquisition_session_id'] for r in items if r.get('acquisition_session_id')})}
     write_json(output/'readiness.json',{'all_historical':counts(records),
-        'priority_drive_collections':counts([r for r in records if r['source_category']=='priority_drive_report']),
+        'priority_drive_collections':counts([r for r in records if r['source_category'] in {'priority_drive_report','priority_drive_project'}]),
         'local_archival_supplement':counts([r for r in records if r['source_category']=='local_archival_report']),
         'linked_feature_rows':int(np.isfinite(x).all(axis=1).sum()),'model_input_eligible_rows':sum(r['model_input_eligible'] for r in rows),
         'artifact_groups_among_linked_features':len({r['artifact_group_id'] for r in records if r.get('image_features')}),

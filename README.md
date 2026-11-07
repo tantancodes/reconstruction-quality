@@ -221,11 +221,15 @@ for dataset inventory and metadata preparation.
 
 The active objective is predicting historical Metashape **pixel reprojection RMS
 from photographs before alignment**. It is not physical mesh-accuracy prediction.
-The separate reviewed dataset is `results/historical-alignment-reviewed-v2/`:
-4 source-documented RMSE observations (1 priority Drive PDF + 3 local archival
-reports), with 3 cached image-feature rows from one artifact. The 145 candidate
-Drive JPEGs are not yet verified as the report's actual processed inputs. No row
-passes the strict readiness gate; settings/session gaps and incompatible error
-stages/definitions prevent meaningful grouped evaluation. No models were trained.
-See [inventory, readiness, exact missing files and CLI](docs/HISTORICAL_ALIGNMENT_DATASET.md).
+The current local dataset is `results/historical-alignment-recovered-v2/`:
+33 verified historical RMSE labels (1 priority Drive PDF + 32 local archival
+reports), including 29 additional labels recovered from ARF Dog. There are 35
+manifest/cache-linked feature rows, 29 with numeric labels, all from one artifact.
+The 145 candidate PAHMA 5-613 JPEGs still lack exact report/input association.
+Small PAHMA 5-1405 metadata links 113 camera labels to candidate TIFF stems but
+contains no verified pixel RMSE or photo paths. The 61.6 MB PDF was not downloaded.
+No row passes the strict readiness gate; session/settings gaps and dependent
+observations prevent meaningful grouped evaluation. No models were trained.
+See [recovery findings and exact missing files](docs/HISTORICAL_ALIGNMENT_RECOVERY.md)
+and the [preserved initial inventory and CLI](docs/HISTORICAL_ALIGNMENT_DATASET.md).
 The dimensional/surface extension and all previous datasets remain available.

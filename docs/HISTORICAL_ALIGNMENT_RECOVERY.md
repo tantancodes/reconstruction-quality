@@ -1,5 +1,10 @@
 # Historical alignment-label recovery — 2026-11-06
 
+See the [2026-11-07 provenance/readiness continuation](PROVENANCE_READINESS.md)
+for component-specific interpretation, the deterministic 5-613 evidence gate,
+independent-artifact leads and current evidence requests. Dataset counts remain
+unchanged; no additional Dog observations were collected in that continuation.
+
 This resource-light continuation starts from `d2ba5bb`. The current local bundle is
 `results/historical-alignment-recovered-v2/`. The previous reviewed dataset,
 dimensional/surface code, archival geometry dataset, photographs and checkpoints

@@ -2,7 +2,7 @@
 from pathlib import Path
 import zipfile
 import pytest
-from bd3d_quality.project_metadata import inspect_project,read_archive_xml,xml_root,compare_stems,MAX_XML
+from bd3d_quality.project_metadata import inspect_project,inspect_frame,read_archive_xml,xml_root,compare_stems,MAX_XML
 
 
 def archive(path,text):
@@ -45,3 +45,32 @@ def test_duplicate_member_rejected(tmp_path):
     with pytest.warns(UserWarning):
         with zipfile.ZipFile(p,'w') as z:z.writestr('doc.xml','<a/>');z.writestr('doc.xml','<b/>')
     with pytest.raises(ValueError):read_archive_xml(p)
+
+
+def test_active_component_membership_and_unknown_references(tmp_path):
+    p=tmp_path/'p.psx';p.write_text('<document path="p.files/project.zip"/>')
+    pj=tmp_path/'project.zip';archive(pj,'<document/>')
+    cj=tmp_path/'chunk.zip'
+    matrix='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1'
+    archive(cj,f'<chunk><components active_id="1"><component id="0"/><component id="1"/></components><cameras><camera id="0" label="a" component_id="0"><transform>{matrix}</transform></camera><camera id="1" label="b" component_id="1"><transform>{matrix}</transform></camera><camera id="2" label="c"/></cameras></chunk>')
+    r=inspect_project(p,pj,cj)
+    assert r['active_component_id']=='1'
+    assert r['components'][1]['active'] and r['components'][1]['camera_labels']==['b']
+    assert r['camera_labels_without_transform']==['c'] and not r['component_integrity_issues']
+    archive(cj,'<chunk><components active_id="ghost"/><cameras><camera id="0" component_id="ghost"><transform>NaN</transform></camera></cameras></chunk>')
+    assert len(inspect_project(p,pj,cj)['component_integrity_issues'])>=3
+
+
+def test_frame_paths_join_by_camera_id_without_opening_files(tmp_path):
+    p=tmp_path/'frame.zip'
+    archive(p,'<frame><cameras><camera camera_id="7"><photo path="../../missing.jpg"><meta><property name="File/ImageWidth" value="100"/></meta></photo></camera></cameras><point_cloud path="missing/cloud.zip"/></frame>')
+    r=inspect_frame(p,[{'camera_id':'7','label':'saved-label'},{'camera_id':'8','label':'other'}])
+    assert r['photos'][0]['chunk_camera_label']=='saved-label'
+    assert r['photos'][0]['photo_path']=='../../missing.jpg'
+    assert r['chunk_camera_ids_missing_from_frame']==['8']
+    assert not r['historical_content_identity_verified'] and r['verified_reprojection_rmse_pixels'] is None
+
+
+def test_duplicate_frame_camera_ids_rejected(tmp_path):
+    p=tmp_path/'frame.zip';archive(p,'<frame><cameras><camera camera_id="0"/><camera camera_id="0"/></cameras></frame>')
+    with pytest.raises(ValueError,match='duplicate frame'):inspect_frame(p,[])

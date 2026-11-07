@@ -233,3 +233,11 @@ observations prevent meaningful grouped evaluation. No models were trained.
 See [recovery findings and exact missing files](docs/HISTORICAL_ALIGNMENT_RECOVERY.md)
 and the [preserved initial inventory and CLI](docs/HISTORICAL_ALIGNMENT_DATASET.md).
 The dimensional/surface extension and all previous datasets remain available.
+
+The [2026-11-07 provenance/readiness audit](docs/PROVENANCE_READINESS.md) clarifies
+the five disconnected 5-1405 alignment components and provides a
+[deterministic report-to-photo protocol](docs/PHOTO_PROVENANCE_PROTOCOL.md).
+Counts remain 33 verified historical labels, 29 label-and-feature pairs and zero
+strict-ready observations or eligible held-out groups. No Dog-derived examples
+were added. The 6-19929 collection is a prospective acquisition lead; the separate
+shared-drive archive link currently returns 404 through the connector.

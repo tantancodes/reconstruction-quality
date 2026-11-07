@@ -241,3 +241,14 @@ Counts remain 33 verified historical labels, 29 label-and-feature pairs and zero
 strict-ready observations or eligible held-out groups. No Dog-derived examples
 were added. The 6-19929 collection is a prospective acquisition lead; the separate
 shared-drive archive link currently returns 404 through the connector.
+
+## EXPLORATORY / NOT VALIDATED — Dog development interface
+
+The new [exploratory analysis and loader guide](docs/EXPLORATORY_ARF_DOG.md) covers
+the existing **29 paired runs, 18 overlapping image sets and one ARF Dog artifact**.
+Plots, missingness, correlations, repeat audits and float32 development arrays are
+in `results/exploratory-arf-dog-v2/`; start with `report.html`.
+`load_alignment_arrays` defaults to the unchanged strict gate (zero real rows);
+exploratory access is explicit and carries its own status and original flags.
+An optional within-Dog mean/Ridge script is prepared but **has not been run**.
+No model training, new image processing, reconstruction or large download occurred.

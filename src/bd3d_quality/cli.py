@@ -68,6 +68,16 @@ def parser():
     se.add_argument('--specification', required=True, type=Path)
     se.add_argument('--sample-count', type=int, default=3000)
     se.add_argument('--output', required=True, type=Path)
+    alignment_report = sub.add_parser('alignment-report', help='Parse historical Metashape processing-report text; no alignment job')
+    ar = alignment_report.add_subparsers(dest='action', required=True)
+    arp = ar.add_parser('parse')
+    arp.add_argument('text_file', type=Path)
+    arp.add_argument('--output', required=True, type=Path)
+    alignment_dataset = sub.add_parser('alignment-dataset', help='Historical image-only / pixel-RMSE records and provenance checks')
+    ads = alignment_dataset.add_subparsers(dest='action', required=True)
+    adb = ads.add_parser('build')
+    adb.add_argument('records', nargs='+', type=Path, help='Individual record JSON or a JSON object containing records')
+    adb.add_argument('--output', required=True, type=Path)
     report = sub.add_parser('report', help='Summarize a condition and consolidate compatible summaries')
     rs = report.add_subparsers(dest='action', required=True)
     summary = rs.add_parser('summarize')
@@ -122,6 +132,19 @@ def main(argv=None):
             write_json(a.output, result)
             print(json.dumps({'comparison_status': result['comparison_status'], 'output': str(a.output)}))
             return 0 if result['comparison_status'] == 'complete' else 2
+        elif a.command == 'alignment-report':
+            from .historical_alignment import parse_report_text
+            result = parse_report_text(a.text_file.read_text())
+            result['source'] = {'file_path': str(a.text_file), 'extracted_text_sha256': sha256_file(a.text_file)}
+            result['interpretation'] = 'Historical source values only; alignment consistency, not physical accuracy'
+            write_json(a.output, result)
+        elif a.command == 'alignment-dataset':
+            from .historical_alignment import build_dataset
+            records = []
+            for path in a.records:
+                value = read_json(path)
+                records.extend(value['records'] if 'records' in value else [value])
+            result = build_dataset(records, a.output)
         elif a.command == 'reconstruct':
             from .metashape_runner import run_reconstruction
             result = run_reconstruction(read_json(a.manifest), a.root, a.output, resume=a.resume, seed_checkpoint=a.seed_checkpoint)

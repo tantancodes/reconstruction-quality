@@ -216,3 +216,16 @@ It does not change the archival tables or convert reprojection error into physic
 accuracy. Current research focus: historical alignment-consistency prediction from
 photographs before alignment; no new reconstruction or model training is required
 for dataset inventory and metadata preparation.
+
+## Current study: historical alignment-consistency prediction
+
+The active objective is predicting historical Metashape **pixel reprojection RMS
+from photographs before alignment**. It is not physical mesh-accuracy prediction.
+The separate reviewed dataset is `results/historical-alignment-reviewed-v2/`:
+4 source-documented RMSE observations (1 priority Drive PDF + 3 local archival
+reports), with 3 cached image-feature rows from one artifact. The 145 candidate
+Drive JPEGs are not yet verified as the report's actual processed inputs. No row
+passes the strict readiness gate; settings/session gaps and incompatible error
+stages/definitions prevent meaningful grouped evaluation. No models were trained.
+See [inventory, readiness, exact missing files and CLI](docs/HISTORICAL_ALIGNMENT_DATASET.md).
+The dimensional/surface extension and all previous datasets remain available.

@@ -209,3 +209,10 @@ and a leakage/dependence audit. Baseline self-comparison targets are masked; phy
 accuracy and dense-point counts are missing. No train/test split or model is fitted.
 It is format-ready, not statistically training-ready. See
 [dataset columns, verification, and remaining blockers](docs/TABULAR_DATASET.md).
+
+The independently measured dimensional/surface pathway is preserved as a future
+extension: see [its protocol, schemas and CLI](docs/DIMENSIONAL_ACCURACY.md).
+It does not change the archival tables or convert reprojection error into physical
+accuracy. Current research focus: historical alignment-consistency prediction from
+photographs before alignment; no new reconstruction or model training is required
+for dataset inventory and metadata preparation.

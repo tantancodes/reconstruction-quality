@@ -188,7 +188,7 @@ def compare_geometry(candidate_path, reference_path, *, reference_id, units,
             return {'mean': float(d.mean()), 'median': float(np.median(d)),
                     'p95': float(np.percentile(d, 95)), 'max': float(d.max()),
                     'rmse': float(np.sqrt(np.mean(d**2)))}
-        out['metrics'] = {'candidate_to_reference': stats(dxy), 'reference_to_candidate': stats(dyx),
+        out['metrics'] = {'symmetric_distances': stats(np.concatenate((dxy,dyx))), 'candidate_to_reference': stats(dxy), 'reference_to_candidate': stats(dyx),
                           'chamfer_mean_squared': float((np.mean(dxy**2) + np.mean(dyx**2)) / 2),
                           'candidate_coverage_fraction': float(np.mean(dxy <= threshold_fraction * diagonal)),
                           'reference_completeness_fraction': float(np.mean(dyx <= threshold_fraction * diagonal)),

@@ -48,6 +48,26 @@ def parser():
     gc.add_argument('--units', required=True, help='Explicit common coordinate units (e.g. mm or arbitrary_shared)')
     gc.add_argument('--sample-count', type=int, default=10000)
     gc.add_argument('--output', required=True, type=Path)
+    dimensional = sub.add_parser('dimensions', help='Independent annotated dimensional error, with explicit scale and uncertainty')
+    ds = dimensional.add_subparsers(dest='action', required=True)
+    de = ds.add_parser('evaluate')
+    de.add_argument('input', type=Path)
+    de.add_argument('--minimum-checks', type=int, default=2)
+    de.add_argument('--allow-missing-uncertainty', action='store_true', help='Diagnostic point labels only; uncertainty incompleteness remains documented')
+    de.add_argument('--output', required=True, type=Path)
+    dataset = sub.add_parser('measured-dataset', help='Export image-only predictors and independent dimensional labels')
+    dataset.add_argument('records', nargs='+', type=Path)
+    dataset.add_argument('--reserved-object-id', action='append', default=[], help='Object reserved for final testing; reject it from development export')
+    dataset.add_argument('--allow-synthetic', action='store_true', help='Synthetic software-example export only; never mixed with real data')
+    dataset.add_argument('--output', required=True, type=Path)
+    surface = sub.add_parser('surface', help='Optional typed metric surface-reference comparison')
+    ss = surface.add_subparsers(dest='action', required=True)
+    se = ss.add_parser('compare')
+    se.add_argument('candidate', type=Path)
+    se.add_argument('reference', type=Path)
+    se.add_argument('--specification', required=True, type=Path)
+    se.add_argument('--sample-count', type=int, default=3000)
+    se.add_argument('--output', required=True, type=Path)
     report = sub.add_parser('report', help='Summarize a condition and consolidate compatible summaries')
     rs = report.add_subparsers(dest='action', required=True)
     summary = rs.add_parser('summarize')
@@ -86,6 +106,22 @@ def main(argv=None):
                 from .local_match_features import match_manifest
                 result = match_manifest(read_json(a.manifest), a.root, a.max_dimension)
             write_json(a.output, result)
+        elif a.command == 'dimensions':
+            from .dimensional_accuracy import evaluate_dimensions
+            result = evaluate_dimensions(read_json(a.input), minimum_checks=a.minimum_checks,
+                require_uncertainty=not a.allow_missing_uncertainty)
+            write_json(a.output, result)
+            print(json.dumps({'qc_status': result['qc_status'], 'valid_checks': result['valid_independent_check_count'], 'output': str(a.output)}))
+            return 0 if result['target_eligible'] else 2
+        elif a.command == 'measured-dataset':
+            from .measured_dataset import export_files
+            result = export_files(a.records, a.output, allow_synthetic=a.allow_synthetic, reserved_object_ids=a.reserved_object_id)
+        elif a.command == 'surface':
+            from .surface_accuracy import compare_surface
+            result = compare_surface(a.candidate, a.reference, read_json(a.specification), sample_count=a.sample_count)
+            write_json(a.output, result)
+            print(json.dumps({'comparison_status': result['comparison_status'], 'output': str(a.output)}))
+            return 0 if result['comparison_status'] == 'complete' else 2
         elif a.command == 'reconstruct':
             from .metashape_runner import run_reconstruction
             result = run_reconstruction(read_json(a.manifest), a.root, a.output, resume=a.resume, seed_checkpoint=a.seed_checkpoint)

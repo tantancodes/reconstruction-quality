@@ -1,0 +1,310 @@
+{
+  "schema_version": 2,
+  "kind": "measured_experiment",
+  "data_origin": "synthetic_test",
+  "object_id": "synthetic-test-box",
+  "session_id": "synthetic-test-session",
+  "subset_id": "synthetic-test-subset",
+  "run_id": "synthetic-test-run",
+  "evaluation_role": "development",
+  "images": [
+    {
+      "path": "synthetic-test-0.png",
+      "sha256": "c0de86f069e1391f13fc0be7e5fb4ceda38b5f6e4b2d37f15ead70818b16a9b3"
+    },
+    {
+      "path": "synthetic-test-1.png",
+      "sha256": "9d049d08ac9ac8d3dbe1069de600578e6d4ec6108e93e904d4f234e8fa21adec"
+    }
+  ],
+  "image_features": {
+    "input_image_count": 2,
+    "image_brightness_mean": 128.0,
+    "image_contrast_std_mean": 30.0,
+    "image_laplacian_variance_mean": 100.0,
+    "image_entropy_bits_mean": 6.0,
+    "image_orb_keypoint_count_mean": 500.0,
+    "pair_ratio_match_count_mean": 80.0
+  },
+  "feature_provenance": {
+    "stage": "pre_reconstruction",
+    "source_kind": "images_only",
+    "input_images_sha256": "6535df6f60abf6df4311929627585082839d83cf9d5972570be8683d04c641ff",
+    "extractor_version": "synthetic-fixture-only",
+    "settings_signature": "c6e2a0a4f627193ba1775af8cb7251e28ba38655f4d4f0366bb3cff2fd0eacc4",
+    "provenance": {
+      "operator": "SYNTHETIC TEST ONLY",
+      "date": "2026-11-06",
+      "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+    }
+  },
+  "reconstruction_configuration": {
+    "engine": "synthetic_test_stub",
+    "protocol": "software example only, no reconstruction"
+  },
+  "dimensional_input": {
+    "schema_version": 1,
+    "kind": "dimensional_evaluation_input",
+    "data_origin": "synthetic_test",
+    "object_id": "synthetic-test-box",
+    "session_id": "synthetic-test-session",
+    "subset_id": "synthetic-test-subset",
+    "run_id": "synthetic-test-run",
+    "ground_truth": {
+      "object_id": "synthetic-test-box",
+      "reference_id": "synthetic-test-measurements",
+      "reference_type": "independent_physical_ground_truth",
+      "measurements": [
+        {
+          "measurement_id": "cal-bar",
+          "measurand_id": "cal-bar",
+          "object_id": "synthetic-test-bar",
+          "role": "calibration",
+          "value": 100,
+          "unit": "mm",
+          "definition": {
+            "kind": "landmark_distance",
+            "description": "SYNTHETIC TEST: predeclared endpoint/face pair cal-bar",
+            "landmarks": [
+              "bar:A",
+              "bar:B"
+            ]
+          },
+          "instrument": {
+            "instrument_id": "synthetic-instrument",
+            "description": "No real instrument; software fixture"
+          },
+          "uncertainty": {
+            "value": 0.1,
+            "unit": "mm",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "qc_status": "verified",
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "length",
+          "measurand_id": "length",
+          "object_id": "synthetic-test-box",
+          "role": "check",
+          "value": 10,
+          "unit": "cm",
+          "definition": {
+            "kind": "rectangular_length",
+            "description": "SYNTHETIC TEST: predeclared endpoint/face pair length",
+            "landmarks": [
+              "length:left",
+              "length:right"
+            ]
+          },
+          "instrument": {
+            "instrument_id": "synthetic-instrument",
+            "description": "No real instrument; software fixture"
+          },
+          "uncertainty": {
+            "value": 0.1,
+            "unit": "mm",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "qc_status": "verified",
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "width",
+          "measurand_id": "width",
+          "object_id": "synthetic-test-box",
+          "role": "check",
+          "value": 5,
+          "unit": "cm",
+          "definition": {
+            "kind": "rectangular_width",
+            "description": "SYNTHETIC TEST: predeclared endpoint/face pair width",
+            "landmarks": [
+              "width:left",
+              "width:right"
+            ]
+          },
+          "instrument": {
+            "instrument_id": "synthetic-instrument",
+            "description": "No real instrument; software fixture"
+          },
+          "uncertainty": {
+            "value": 0.1,
+            "unit": "mm",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "qc_status": "verified",
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "height",
+          "measurand_id": "height",
+          "object_id": "synthetic-test-box",
+          "role": "check",
+          "value": 0.025,
+          "unit": "m",
+          "definition": {
+            "kind": "rectangular_height",
+            "description": "SYNTHETIC TEST: predeclared endpoint/face pair height",
+            "landmarks": [
+              "height:bottom",
+              "height:top"
+            ]
+          },
+          "instrument": {
+            "instrument_id": "synthetic-instrument",
+            "description": "No real instrument; software fixture"
+          },
+          "uncertainty": {
+            "value": 0.1,
+            "unit": "mm",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "qc_status": "verified",
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        }
+      ]
+    },
+    "reconstruction": {
+      "object_id": "synthetic-test-box",
+      "session_id": "synthetic-test-session",
+      "subset_id": "synthetic-test-subset",
+      "run_id": "synthetic-test-run",
+      "geometry_sha256": "ff26bd8ca377771fb21fa035fd4d0b94bde8c04b1c9573e282be183faca18fcb",
+      "coordinate_unit": "arbitrary",
+      "uncertainty_assumption": "independent_components",
+      "uncertainty_assumption_notes": "Synthetic independence assumption for software tests only; no shared real instrument or covariance claim.",
+      "scale": {
+        "status": "verified",
+        "method": "single_calibration_distance",
+        "calibration_measurement_ids": [
+          "cal-bar"
+        ],
+        "provenance": {
+          "operator": "SYNTHETIC TEST ONLY",
+          "date": "2026-11-06",
+          "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+        }
+      },
+      "measurements": [
+        {
+          "measurement_id": "cal-bar",
+          "object_id": "synthetic-test-bar",
+          "method": "annotated_distance",
+          "value": 50,
+          "unit": "arbitrary",
+          "landmarks": [
+            "bar:A",
+            "bar:B"
+          ],
+          "qc_status": "verified",
+          "uncertainty": {
+            "value": 0.01,
+            "unit": "arbitrary",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "length",
+          "object_id": "synthetic-test-box",
+          "method": "annotated_distance",
+          "value": 51,
+          "unit": "arbitrary",
+          "landmarks": [
+            "length:left",
+            "length:right"
+          ],
+          "qc_status": "verified",
+          "uncertainty": {
+            "value": 0.01,
+            "unit": "arbitrary",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "width",
+          "object_id": "synthetic-test-box",
+          "method": "annotated_distance",
+          "value": 24.5,
+          "unit": "arbitrary",
+          "landmarks": [
+            "width:left",
+            "width:right"
+          ],
+          "qc_status": "verified",
+          "uncertainty": {
+            "value": 0.01,
+            "unit": "arbitrary",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        },
+        {
+          "measurement_id": "height",
+          "object_id": "synthetic-test-box",
+          "method": "annotated_distance",
+          "value": 12.75,
+          "unit": "arbitrary",
+          "landmarks": [
+            "height:bottom",
+            "height:top"
+          ],
+          "qc_status": "verified",
+          "uncertainty": {
+            "value": 0.01,
+            "unit": "arbitrary",
+            "kind": "standard",
+            "method": "Synthetic software fixture, not a measurement"
+          },
+          "provenance": {
+            "operator": "SYNTHETIC TEST ONLY",
+            "date": "2026-11-06",
+            "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+          }
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "operator": "SYNTHETIC TEST ONLY",
+    "date": "2026-11-06",
+    "evidence_id": "synthetic-fixture-not-a-physical-measurement"
+  }
+}

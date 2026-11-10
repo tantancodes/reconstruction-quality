@@ -3,6 +3,7 @@
   python3 scripts/scrub_paths.py                      # list tracked files with /Users/ paths
   python3 scripts/scrub_paths.py --include-untracked  # also check untracked, non-ignored files
   python3 scripts/scrub_paths.py --apply              # replace /Users/<name> with <LOCAL> in place
+  python3 scripts/scrub_paths.py --apply docs/A.md     # only the named files (must be tracked)
 
 --apply keeps the rest of each path, so /Users/alice/Documents/x becomes <LOCAL>/Documents/x.
 It rewrites files in place, so run it on a clean working tree and review `git diff` before
@@ -33,9 +34,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--apply', action='store_true', help=f'replace /Users/<name> with {PLACEHOLDER} in place')
     ap.add_argument('--include-untracked', action='store_true')
+    ap.add_argument('paths', nargs='*', help='limit to these repo-relative files (default: all)')
     a = ap.parse_args()
+    known = files(a.include_untracked)
+    missing = [x for x in a.paths if x not in known]
+    if missing:
+        ap.error(f'not tracked (or not found): {missing}')
     hits = []
-    for rel in files(a.include_untracked):
+    for rel in (a.paths or known):
         path = REPO / rel
         if path.resolve() == Path(__file__).resolve() or not path.is_file():  # its own docs/regex
             continue

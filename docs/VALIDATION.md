@@ -71,7 +71,7 @@ repeat of the historical full-reference condition.
 ## Reproduction
 
 ```bash
-cd /Users/tristan/Documents/bd3d-reconstruction-quality
+cd <LOCAL>/Documents/bd3d-reconstruction-quality
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[local,test]'
@@ -83,10 +83,10 @@ The local real-data integration used the existing compatible interpreter without
 installing into it or writing bytecode in the old repository:
 
 ```bash
-PYTHONPATH=/Users/tristan/Documents/bd3d-reconstruction-quality/src \
-/Users/tristan/Documents/ChatGPT/bd3d/venv312/bin/python -B -m bd3d_quality.cli \
+PYTHONPATH=<LOCAL>/Documents/bd3d-reconstruction-quality/src \
+<LOCAL>/Documents/ChatGPT/bd3d/venv312/bin/python -B -m bd3d_quality.cli \
 reconstruct results/arf-dog-50-manifest.json \
---root /Users/tristan/Downloads/Jpg-processed --output results/my-fresh-real-run
+--root <LOCAL>/Downloads/Jpg-processed --output results/my-fresh-real-run
 ```
 
 The real manifest is intentionally ignored by Git. On another machine, obtain the

@@ -36,9 +36,11 @@ def system_sample(pid=None):
     return sample
 
 
-def limit_reason(sample, baseline, elapsed, disk_bytes, *, seconds=900, max_bytes=2_000_000_000, rss_bytes=3*1024**3):
+def limit_reason(sample, baseline, elapsed, disk_bytes, *, seconds=900, max_bytes=2_000_000_000, rss_bytes=3*1024**3,
+                 swap_growth_mib=256):
     if sample['pressure'] >= 4: return 'critical_system_memory_pressure'
-    if sample['swap_used_mb'] - baseline['swap_used_mb'] > 256: return 'system_swap_growth_over_256_MiB'
+    if sample['swap_used_mb'] - baseline['swap_used_mb'] > swap_growth_mib:
+        return f'system_swap_growth_over_{swap_growth_mib:g}_MiB'
     if sample['rss_bytes'] > rss_bytes: return 'process_RSS_limit'
     if elapsed >= seconds: return 'wall_time_limit'
     if disk_bytes >= max_bytes: return 'output_storage_limit'
@@ -50,7 +52,8 @@ def directory_bytes(path):
     return sum(p.stat().st_size for p in path.rglob('*') if p.is_file())
 
 
-def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False):
+def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False, swap_growth_mib=256,
+                  limit_note=None, seconds_note=None):
     output = Path(output).resolve()
     if output.exists():
         state = read_json(output / 'run.json') if allow_cloned_checkpoint else {}
@@ -65,8 +68,15 @@ def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False
     child = None
     result = {'status': 'not_started', 'started_at': now(), 'baseline': baseline, 'samples': [], 'command': command,
               'limits': {'seconds': seconds, 'output_bytes': 2_000_000_000, 'RSS_bytes': 3*1024**3,
-                         'swap_growth_MiB': 256, 'critical_pressure_level': 4,
+                         'swap_growth_MiB': swap_growth_mib, 'critical_pressure_level': 4,
                          'OpenMP_requested_thread_limit': 2, 'CPU_run_fraction': 0.2, 'CPU_percent_sustained_limit': 300}}
+    overrides = {}
+    if swap_growth_mib != 256:
+        overrides['swap_growth_MiB'] = {'default': 256, 'used': swap_growth_mib, 'note': limit_note}
+    if seconds != 900:
+        overrides['seconds'] = {'default': 900, 'used': seconds, 'note': seconds_note}
+    if overrides:
+        result['limit_overrides'] = overrides
     start = time.monotonic()
     log_path = output.with_name(output.name + '-console.log')
     result_path = output.with_name(output.name + '-resources.json')
@@ -89,7 +99,8 @@ def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False
                 sample['elapsed_seconds'] = time.monotonic() - start
                 sample['output_bytes'] = directory_bytes(output)
                 result['samples'].append(sample)
-                reason = limit_reason(sample, baseline, sample['elapsed_seconds'], sample['output_bytes'], seconds=seconds)
+                reason = limit_reason(sample, baseline, sample['elapsed_seconds'], sample['output_bytes'], seconds=seconds,
+                                      swap_growth_mib=swap_growth_mib)
                 high_cpu_samples = high_cpu_samples + 1 if sample['cpu_percent'] > 300 else 0
                 if high_cpu_samples >= 5: reason = 'CPU_concurrency_limit_not_respected'
                 if reason:
@@ -135,14 +146,20 @@ def main():
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--seconds', type=int, default=900)
     p.add_argument('--allow-cloned-checkpoint', action='store_true')
+    p.add_argument('--swap-growth-mib', type=float, default=256,
+                   help='system swap growth that stops the run (default 256); overrides are recorded')
+    p.add_argument('--limit-note', help='reason for the swap-growth override, stored in the resources JSON')
+    p.add_argument('--seconds-note', help='reason for a wall-time cap above 900 s (required for it), stored in the resources JSON')
     p.add_argument('command', nargs=argparse.REMAINDER)
     a = p.parse_args()
     command = a.command[1:] if a.command[:1] == ['--'] else a.command
-    if not command or not 0 < a.seconds <= 900: p.error('command and timeout 1..900 seconds required')
+    if not command or not 0 < a.seconds <= 1800: p.error('command and timeout 1..1800 seconds required')
+    if a.seconds > 900 and not a.seconds_note: p.error('a wall-time cap above 900 s needs --seconds-note')
     def interrupted(signum, frame):
         raise KeyboardInterrupt('watchdog received termination signal')
     signal.signal(signal.SIGTERM, interrupted)
-    result = run_monitored(command, a.output, seconds=a.seconds, allow_cloned_checkpoint=a.allow_cloned_checkpoint)
+    result = run_monitored(command, a.output, seconds=a.seconds, allow_cloned_checkpoint=a.allow_cloned_checkpoint,
+                           swap_growth_mib=a.swap_growth_mib, limit_note=a.limit_note, seconds_note=a.seconds_note)
     print(result['status'])
     return 0 if result['status'] == 'complete' else 2
 

@@ -1,0 +1,57 @@
+{
+  "started_at": "2026-11-10 05:27:16",
+  "steps": [
+    {
+      "step": "c_random30_s20261111",
+      "exit_code": 0,
+      "seconds": 403.4,
+      "finished_at": "05:33:59"
+    },
+    {
+      "step": "c_side40_s1",
+      "exit_code": 0,
+      "seconds": 2148.0,
+      "finished_at": "06:09:47"
+    },
+    {
+      "step": "c_random60_s20261112",
+      "exit_code": 0,
+      "seconds": 886.6,
+      "finished_at": "06:24:34"
+    },
+    {
+      "step": "c_score_coffin",
+      "exit_code": 0,
+      "seconds": 9.9,
+      "finished_at": "06:24:44"
+    },
+    {
+      "step": "c_labels_coffin",
+      "exit_code": 0,
+      "seconds": 0.0,
+      "finished_at": "06:24:44"
+    },
+    {
+      "step": "c_pilot_models",
+      "exit_code": 0,
+      "seconds": 250.4,
+      "finished_at": "06:28:54"
+    },
+    {
+      "step": "c_results_notebook",
+      "exit_code": 0,
+      "seconds": 1.8,
+      "finished_at": "06:28:56"
+    }
+  ],
+  "continuation_of": "chain-status.json",
+  "scored_coffin": [
+    "drop_s3",
+    "drop_s2",
+    "random30_s20261111",
+    "side40_s1",
+    "random60_s20261112"
+  ],
+  "leftover_processes": "none",
+  "finished_at": "2026-11-10 06:28:56"
+}

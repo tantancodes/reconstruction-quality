@@ -1,6 +1,8 @@
 """Run one or more manifests sequentially under the watchdog (general form of run_gpu_pilot.py).
 
 Stop rules:
+  - preflight: before each job, a separate venv312 process checks Metashape.app.activated;
+                        if not True -> log "license unavailable (check VPN)" and stop (no retries).
   - license denied   -> retry up to 3 times, 5 minutes apart, each in a NEW directory
                         (<name>-retryN); then stop.
   - watchdog stop     -> stop and report.
@@ -30,6 +32,24 @@ def stamp():
     return time.strftime('%H:%M:%S')
 
 
+def license_preflight(log_path):
+    """Check Metashape license activation in a throwaway process; append the outcome to log_path."""
+    try:
+        proc = subprocess.run([PY, '-B', '-c', 'import Metashape; print(bool(Metashape.app.activated))'],
+                              capture_output=True, text=True, timeout=120,
+                              env={'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'})
+        ok = proc.returncode == 0 and proc.stdout.strip().splitlines()[-1:] == ['True']
+        detail = (proc.stdout + proc.stderr).strip()
+    except subprocess.TimeoutExpired:
+        ok, detail = False, 'activation check timed out after 120 s'
+    line = f'[{time.strftime("%Y-%m-%d %H:%M:%S")}] license preflight: ' + \
+        ('activated' if ok else f'license unavailable (check VPN) | {detail[-300:]}')
+    with log_path.open('a') as f:
+        f.write(line + '\n')
+    print(line, flush=True)
+    return ok
+
+
 def attempt(manifest, out, a):
     cmd = [PY, '-B', '-m', 'bd3d_quality.resource_monitor', '--output', str(out), '--seconds', str(a.seconds)]
     if a.seconds_note:
@@ -40,6 +60,8 @@ def attempt(manifest, out, a):
         cmd += ['--rss-gib', str(a.rss_gib), '--rss-note', a.memory_note]
     cmd += ['--', PY, '-B', '-m', 'bd3d_quality.cli', 'reconstruct', str(manifest), '--root', str(a.root),
             '--output', str(out)]
+    if a.image_quality_cache:
+        cmd += ['--image-quality-cache', str(a.image_quality_cache.resolve())]
     wd_log = out.with_name(out.name + '-watchdog.log')
     print(f'[{stamp()}] start {out.name}', flush=True)
     with wd_log.open('x') as log:
@@ -55,7 +77,8 @@ def attempt(manifest, out, a):
     status = {'run': out.name, 'watchdog_exit_code': proc.returncode, 'metashape_status': run.get('status'),
               'resources_recorded': res is not None, 'watchdog_status': res and res['status'],
               'stop_reason': res and res.get('stop_reason'),
-              'elapsed_seconds': res and round(res['elapsed_seconds'], 1), 'failures': msg or None}
+              'elapsed_seconds': res and round(res['elapsed_seconds'], 1), 'failures': msg or None,
+              'image_quality_source': run.get('image_quality_source')}
     if res is None:
         status['note'] = 'resources unrecorded'
     out.with_name(out.name + '-pilot-status.json').write_text(json.dumps(status, indent=2) + '\n')
@@ -82,6 +105,7 @@ def main():
     ap.add_argument('--swap-growth-mib', type=float, default=256)
     ap.add_argument('--rss-gib', type=float, default=3)
     ap.add_argument('--memory-note')
+    ap.add_argument('--image-quality-cache', type=Path, help='reuse per-image quality instead of analyzeImages')
     a = ap.parse_args()
     caps = a.seconds * len(a.manifests) if len(a.seconds) == 1 else a.seconds
     if len(caps) != len(a.manifests):
@@ -93,6 +117,9 @@ def main():
         name = manifest.stem
         for n in range(RETRIES + 1):
             out = (a.output_dir / (name if n == 0 else f'{name}-retry{n}')).resolve()
+            if not license_preflight(a.output_dir / 'license-preflight.log'):
+                print(f'STOP: {out.name} -> license unavailable (check VPN)', flush=True)
+                sys.exit(3)
             result = attempt(manifest.resolve(), out, a)
             if result in ('ok', 'ok_unrecorded'):
                 break

@@ -1,0 +1,128 @@
+{
+  "started_at": "2026-11-10 02:59:58",
+  "steps": [
+    {
+      "step": "p1_cache",
+      "exit_code": 0,
+      "seconds": 0.2,
+      "finished_at": "03:50:29"
+    },
+    {
+      "step": "p1_series_split",
+      "exit_code": 0,
+      "seconds": 0.1,
+      "finished_at": "03:50:29"
+    },
+    {
+      "step": "p1_manifests",
+      "exit_code": 0,
+      "seconds": 0.6,
+      "finished_at": "03:50:30"
+    },
+    {
+      "step": "p1_metashape",
+      "exit_code": 2,
+      "seconds": 3649.5,
+      "finished_at": "04:51:19"
+    },
+    {
+      "step": "p2_metashape",
+      "exit_code": 0,
+      "seconds": 1874.6,
+      "finished_at": "05:22:34"
+    },
+    {
+      "step": "p3_score_coffin",
+      "exit_code": 0,
+      "seconds": 4.9,
+      "finished_at": "05:22:39"
+    },
+    {
+      "step": "p3_labels_coffin",
+      "exit_code": 0,
+      "seconds": 0.0,
+      "finished_at": "05:22:39"
+    },
+    {
+      "step": "p3_score_dog",
+      "exit_code": 0,
+      "seconds": 13.2,
+      "finished_at": "05:22:52"
+    },
+    {
+      "step": "p3_labels_dog",
+      "exit_code": 0,
+      "seconds": 0.0,
+      "finished_at": "05:22:52"
+    },
+    {
+      "step": "p4a_pilot_models",
+      "exit_code": 0,
+      "seconds": 194.9,
+      "finished_at": "05:26:07"
+    },
+    {
+      "step": "p4b_results_notebook",
+      "exit_code": 0,
+      "seconds": 1.8,
+      "finished_at": "05:26:09"
+    }
+  ],
+  "ref145b_status": {
+    "run": "ref145b",
+    "watchdog_exit_code": 0,
+    "metashape_status": "complete",
+    "resources_recorded": true,
+    "watchdog_status": "complete",
+    "stop_reason": null,
+    "elapsed_seconds": 3448.4,
+    "failures": null,
+    "image_quality_source": {
+      "method": "analyzeImages"
+    }
+  },
+  "ref145b_complete": true,
+  "series_split": {
+    "pose_vs_capture_time_agree": "63/145",
+    "pose_series_sizes": {
+      "1": 57,
+      "2": 38,
+      "3": 50
+    },
+    "used": "series_pose"
+  },
+  "p1_manifests": [
+    "drop_s3",
+    "drop_s2",
+    "random30_s20261110",
+    "random30_s20261111",
+    "side40_s1",
+    "random60_s20261112"
+  ],
+  "part1": "stopped",
+  "p2_manifests": [
+    "random15_s20261110",
+    "random15_s20261111",
+    "random20_s20261110",
+    "random20_s20261111",
+    "side25"
+  ],
+  "part2": "complete",
+  "scored": {
+    "coffin": [
+      "drop_s3",
+      "drop_s2"
+    ],
+    "dog": [
+      "random10",
+      "side40",
+      "random15_s20261110",
+      "random15_s20261111",
+      "random20_s20261110",
+      "random20_s20261111",
+      "side25"
+    ]
+  },
+  "leftover_processes": "none",
+  "finished_at": "2026-11-10 05:26:09"
+}

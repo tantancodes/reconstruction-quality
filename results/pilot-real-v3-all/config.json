@@ -1,0 +1,24 @@
+{
+  "status": "PILOT - tiny n, not evidence of model skill",
+  "n_runs": 28,
+  "artifacts": [
+    "arf-dog",
+    "pahma-5-613"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "epochs": 400,
+  "hidden": 32,
+  "optimizer": "Adam lr 1e-3 wd 1e-4, full batch",
+  "input": "aligned cameras: position (centroid-centred, / median distance) + view direction",
+  "augmentation": "fresh random rotation per run per epoch; test = mean over 8 random rotations",
+  "learning_curves": "training loss of the first LORO fold per (model, seed)",
+  "label": "v3 symmetric normalized RMSE vs each artifact/pipeline reference",
+  "coffin_labels": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/labels-all.csv",
+  "seconds": 248.4
+}

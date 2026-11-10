@@ -1,0 +1,17 @@
+[2026-11-10 05:27:16] step c_random30_s20261111: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/pahma-5-613/candidates/random30_s20261111.json --root /Users/tristan/Documents/bd3d-data/PAHMA-5-613 --output-dir /Users/tristan/Document
+[2026-11-10 05:33:59] step c_random30_s20261111: exit 0 (403s)
+[2026-11-10 05:33:59] step c_side40_s1: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/pahma-5-613/candidates/side40_s1.json --root /Users/tristan/Documents/bd3d-data/PAHMA-5-613 --output-dir /Users/tristan/Documents/bd3d-re
+[2026-11-10 06:09:47] step c_side40_s1: exit 0 (2148s)
+[2026-11-10 06:09:47] step c_random60_s20261112: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/pahma-5-613/candidates/random60_s20261112.json --root /Users/tristan/Documents/bd3d-data/PAHMA-5-613 --output-dir /Users/tristan/Document
+[2026-11-10 06:24:34] step c_random60_s20261112: exit 0 (887s)
+[2026-11-10 06:24:34] step c_score_coffin: /Users/tristan/Documents/bd3d-reconstruction-quality/.venv/bin/python scripts/score_runs_v3.py --fork /Users/tristan/Documents/ChatGPT/bd3d --reference /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/ref145b --candidates /Users/tristan/Documents/bd3d-reconstruction-qualit
+[2026-11-10 06:24:44] step c_score_coffin: exit 0 (10s)
+[2026-11-10 06:24:44] step c_labels_coffin: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/combine_labels.py --artifact pahma-5-613 --scores /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/geometry-v3-all --runs-dir /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2 
+[2026-11-10 06:24:44] step c_labels_coffin: exit 0 (0s)
+[2026-11-10 06:24:44] scored_coffin: ['drop_s3', 'drop_s2', 'random30_s20261111', 'side40_s1', 'random60_s20261112']
+[2026-11-10 06:24:44] step c_pilot_models: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/pilot_set_models.py --output /Users/tristan/Documents/bd3d-reconstruction-quality/results/pilot-real-v3-all --coffin-labels /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/labels-all.csv
+[2026-11-10 06:28:54] step c_pilot_models: exit 0 (250s)
+[2026-11-10 06:28:54] step c_results_notebook: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/build_results_notebook.py --pilot /Users/tristan/Documents/bd3d-reconstruction-quality/results/pilot-real-v3-all --coffin-labels /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/labels-all.csv
+[2026-11-10 06:28:56] step c_results_notebook: exit 0 (2s)
+[2026-11-10 06:28:56] leftover_processes: none
+[2026-11-10 06:28:56] CONTINUATION DONE

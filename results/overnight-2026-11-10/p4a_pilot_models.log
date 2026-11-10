@@ -1,0 +1,38 @@
+25 runs: arf-dog 23, pahma-5-613 2
+  LORO held out arf-dog-image-count-25-seed-20260822-v1: done
+  LORO held out arf-dog-image-count-25-seed-20260823-v1: done
+  LORO held out arf-dog-image-count-25-seed-20260824-v1: done
+  LORO held out arf-dog-image-count-30-seed-20260822-v1: done
+  LORO held out arf-dog-image-count-30-seed-20260823-v1: done
+  LORO held out arf-dog-image-count-30-seed-20260824-v1: done
+  LORO held out arf-dog-image-count-35-seed-20260822-v1: done
+  LORO held out arf-dog-image-count-35-seed-20260823-v1: done
+  LORO held out arf-dog-image-count-35-seed-20260824-v1: done
+  LORO held out arf-dog-image-count-40-seed-20260822-v1: done
+  LORO held out arf-dog-image-count-40-seed-20260823-v1: done
+  LORO held out arf-dog-image-count-40-seed-20260824-v1: done
+  LORO held out arf-dog-structured-central-gap-30-v1: done
+  LORO held out arf-dog-structured-remove-strongest-overlap-30-v1: done
+  LORO held out arf-dog-structured-remove-weakest-overlap-30-v1: done
+  LORO held out arf-dog-structured-uniform-30-v1: done
+  LORO held out random10: done
+  LORO held out side40: done
+  LORO held out random15_s20261110: done
+  LORO held out random15_s20261111: done
+  LORO held out random20_s20261110: done
+  LORO held out random20_s20261111: done
+  LORO held out side25: done
+  LORO held out drop_s3: done
+  LORO held out drop_s2: done
+  LOAO held out arf-dog: done
+  LOAO held out pahma-5-613: done
+LORO  mean      MAE 0.00309 ± 0.00000  skill +0.00 ± 0.00
+LORO  reproj    MAE 0.00251 ± 0.00000  skill +0.19 ± 0.00
+LORO  ridge     MAE 0.00448 ± 0.00000  skill -0.45 ± 0.00
+LORO  pointnet  MAE 0.00253 ± 0.00007  skill +0.18 ± 0.02
+LORO  attention MAE 0.00262 ± 0.00007  skill +0.15 ± 0.02
+LOAO  mean      MAE 0.00530 ± 0.00000  skill +0.00 ± 0.00
+LOAO  reproj    MAE 0.00786 ± 0.00000  skill -0.48 ± 0.00
+LOAO  ridge     MAE 0.00888 ± 0.00000  skill -0.68 ± 0.00
+LOAO  pointnet  MAE 0.00451 ± 0.00011  skill +0.15 ± 0.02
+LOAO  attention MAE 0.00479 ± 0.00006  skill +0.10 ± 0.01

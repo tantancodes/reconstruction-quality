@@ -1,0 +1,15 @@
+{
+  "cpu_only": false,
+  "depth_downscale": 8,
+  "depth_filter": "MildFiltering",
+  "generic_preselection": true,
+  "keypoint_limit": 40000,
+  "match_downscale": 1,
+  "min_aligned_cameras": 2,
+  "min_alignment_fraction": 0.8,
+  "min_valid_tie_points": 1,
+  "profile": "mesh",
+  "profile_version": 1,
+  "reference_preselection": false,
+  "tiepoint_limit": 4000
+}

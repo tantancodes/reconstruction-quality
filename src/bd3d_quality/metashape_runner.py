@@ -1,15 +1,33 @@
 """Isolated Metashape 2.2 integration, raw artifacts and verified checkpoints."""
 from __future__ import annotations
+import csv
 import importlib
 import os
 import shutil
+import tempfile
 from pathlib import Path
 import time
 from uuid import uuid4
 from .config import ReconstructionConfig, ResourceProtocol
 from .manifests import require_valid, safe_path
 from .provenance import now, write_json, read_json, sha256_file, software_versions, digest
-from .reconstruction_metrics import collect_metrics
+from .reconstruction_metrics import CAMERA_TABLE_COLUMNS, collect_camera_table, collect_metrics
+
+
+def write_camera_table(path, rows):
+    """Atomic CSV publish; None is written as an empty cell (missing, not zero)."""
+    path = Path(path)
+    fd, name = tempfile.mkstemp(dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=CAMERA_TABLE_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
 
 
 def project_fingerprints(output):
@@ -111,6 +129,12 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_c
         else:
             chunk = doc.addChunk()
             chunk.addPhotos([str(safe_path(root, e['path'])) for e in manifest['images']])
+            try:
+                # Writes camera.meta['Image/Quality'] for cameras.csv; never fatal.
+                chunk.analyzeImages(chunk.cameras)
+            except Exception as exc:
+                state['warnings'].append({'stage': 'image_analysis', 'field': 'image_quality',
+                                          'missing_reason': f'analyzeImages failed: {type(exc).__name__}: {exc}'})
         completed = {s['stage'] for s in state['stages']}
 
         def checkpoint(stage, duration, operation_seconds=None):
@@ -148,6 +172,12 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_c
             snapshot = checkpoint('initial_alignment', time.perf_counter() - t)
         else:
             snapshot = next(s for s in state['stages'] if s['stage'] == 'initial_alignment')
+        if not any(a['path'] == 'cameras.csv' for a in state['artifacts']):
+            # Before the alignment criteria check, so failed alignments keep their table too.
+            write_camera_table(output / 'cameras.csv', collect_camera_table(chunk))
+            p = output / 'cameras.csv'
+            state['artifacts'].append({'path': p.name, 'sha256': sha256_file(p), 'size_bytes': p.stat().st_size})
+            write_json(output / 'run.json', state, replace=True)
         metrics = snapshot['metrics']
         if (metrics['camera_count'] != manifest['image_count'] or
             metrics['aligned_camera_count'] < config.min_aligned_cameras or

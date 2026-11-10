@@ -1,0 +1,35 @@
+{
+  "evaluator_v3": {
+    "evaluator_version": 3,
+    "schema_version": "1.0",
+    "random_seed": 20260822,
+    "evaluation_sample_count": 100000,
+    "registration_sample_count": 20000,
+    "registration_method": "camera_similarity_initialization_then_similarity_point_to_point_icp",
+    "icp_max_iterations": 60,
+    "icp_relative_tolerance": 1e-07,
+    "icp_absolute_tolerance_fraction": 1e-12,
+    "icp_max_correspondence_distance_fraction": 0.05,
+    "threshold_fractions_of_reference_diagonal": [
+      0.0025,
+      0.005,
+      0.01,
+      0.02
+    ],
+    "scale_check_tolerance": 0.025,
+    "signature": "ce52f0ae78eec23f"
+  },
+  "reference_mesh": {
+    "identifier": "ARF_Dog_FAST_DENSE_Geometry_50_v1",
+    "path": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_50_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_50_v1.obj",
+    "sha256": "8da052d2cc4068b93dcc98b6ad9f25b160a1b62931bc3f620bf213a8e3b76cac",
+    "vertex_count": 33570,
+    "triangle_count": 67136,
+    "bounding_box_diagonal": 3.987058965155269
+  },
+  "reference_cameras": "results/hist16-old-alignment/_reference/cameras.csv",
+  "historical_label_csv": "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv",
+  "v2_folder": "results/geometry-labels-v2",
+  "v1_v2_files_unchanged": true,
+  "wall_seconds": 28.1
+}

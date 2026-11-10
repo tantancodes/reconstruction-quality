@@ -1,0 +1,48 @@
+{
+  "evaluator_v2": {
+    "evaluator_version": 2,
+    "schema_version": "1.0",
+    "random_seed": 20260822,
+    "evaluation_sample_count": 100000,
+    "registration_sample_count": 20000,
+    "registration_method": "centroid_initialization_then_similarity_point_to_point_icp_uniform_scale",
+    "icp_max_iterations": 60,
+    "icp_relative_tolerance": 1e-07,
+    "icp_absolute_tolerance_fraction": 1e-12,
+    "icp_max_correspondence_distance_fraction": 0.05,
+    "threshold_fractions_of_reference_diagonal": [
+      0.0025,
+      0.005,
+      0.01,
+      0.02
+    ],
+    "signature": "a2dc3b09c6090bf6"
+  },
+  "evaluator_v1_signature": "d6c0d0c230cb34c3",
+  "scale_check_tolerance": 0.01,
+  "qc_rule": "pass >= 0.95 fitness, caution 0.80-0.95, manual_review < 0.80 (historical METHODS.md)",
+  "sensitivity_iterations": 300,
+  "reference_mesh": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_50_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_50_v1.obj",
+  "historical_label_csv": "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv",
+  "historical_files_unchanged": true,
+  "historical_file_sha256": {
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv": "a6172540766de3303d0fa85362ec0751025d3acee8b21c21a819237433235a86",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/0a9d9e17-6b86-411d-847f-308c1ef16593.json": "0239f12dab5ea3ab6dd0e00f3de6d5f5ec956fd101e3644fa58e3ac301269a1e",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/1933c155-527e-4de4-8c01-0c19c49dbff2.json": "8cbf0d08cfa10a94988a72c5e4223b6cf7b78a17987963cde4a108cb504bd753",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/22a9fe42-8bd1-4941-861f-a0b04adc6e5c.json": "00e1b25b4fdbc960b6c5f24c7b95a486769696fad59d43ee5bfc31e605ba2397",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/3325ba17-975b-424f-8022-795a7019c17e.json": "b92164c8f3a86985364042debc3b3ea15edcd32cd94a4fc86825f6244c7e6876",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/37b04e13-ee7d-431a-844c-c1807a21186c.json": "6e60b490eaae192d815e822a79903b652d66b2c6f5f7d3ce45dc5a84f13ea227",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/3857e746-0ca6-445e-8457-028788b87bba.json": "602bbe60f35380359f70a4d8538bba35b82cb65b4e71e792428e62cfabf05820",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/451e36aa-93cd-4fae-bc82-543143113a0a.json": "d420be809ce7e5e0c7452fd715b3b7ef6142a1c5e980d81799aa2f9b6402993c",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/59e1daa3-0772-4fa7-823e-f34a40d3569c.json": "95a8a301a1923cf8fe8f3bb3e27de2ecdb8457e3f056efdc824afdcf2d4c936d",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/8958b597-2444-4a99-96d9-854067a392d8.json": "f42bbe9c549d244d023225a79f2d88c2c65e091f7bff85bc413ae6246b0bcaef",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/9ecba7a0-ca97-4eed-99ad-ebc7cc0d8583.json": "9fb8edab10732e2d2b7d7eb08e9a2872b18f623dd5c90bc63d43215f1153164a",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/a0d50747-ced4-40d5-905b-06c0bf80f33c.json": "371da27c336d071604ccdc9f4e970cdf53a0be97012f35bc024168b619c917dc",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/c3e204f0-782c-4262-8624-13bf52a92889.json": "b2b9f733668f040f3759750888a6e409496b14076101627d0d786d7a24822bb6",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/d914ce71-3978-424d-8662-1936e6610b28.json": "229d1c3b4866d64c0c8b30fbe36c0aaf9daea1e0b55802e881c66440bf74ab69",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/dd072dbe-a6ca-4c80-a80c-bcb40264a23f.json": "43453be5c1acd2ba65185ca7a971aa5281440cba25a5c761733a88b0d0edd821",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/eee3ba2f-7bf5-4309-838b-b666332d31e9.json": "b745f55da759773ebcb5fb003a84f9ba7392a2098eccec562b70cf3cd4f8d5b8",
+    "/Users/tristan/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/geometry_reports/fabad51f-3159-4e09-93ef-45d91f10190c.json": "6bb07d55b31e9f5ee9d934be6bd66aac825b4a9a7dd946172dca7490c03d6834"
+  },
+  "wall_seconds": 185.4
+}

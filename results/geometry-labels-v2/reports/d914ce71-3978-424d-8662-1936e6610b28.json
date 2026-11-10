@@ -1,0 +1,226 @@
+{
+  "row": {
+    "run_id": "d914ce71-3978-424d-8662-1936e6610b28",
+    "experiment_id": "arf-dog-image-count-30-seed-20260824-v1",
+    "images_used_count": "30",
+    "label_v1_stored": 0.04289850132239365,
+    "label_v1_rerun": 0.042898501322393645,
+    "label_v1_reimplemented": 0.04289850132239366,
+    "qc_v1": "caution",
+    "fitness_v1": 0.83125,
+    "label_v2": 0.043448755274535664,
+    "qc_v2": "caution",
+    "fitness_v2": 0.8826,
+    "icp_scale_v2": 0.8762057162555498,
+    "camera_scale": 0.9658410732239114,
+    "camera_shared_images": 30,
+    "camera_shape_residual": 3.733920953316507e-05,
+    "scale_check": "disagree",
+    "iterations_v1": 60,
+    "converged_v1": false,
+    "iterations_v2": 60,
+    "converged_v2": false,
+    "reg_frac_beyond_cutoff_v1": 0.16874999999999996,
+    "c2r_frac_beyond_cutoff_v1": 0.16578,
+    "r2c_frac_beyond_cutoff_v1": 0.16789,
+    "far_share_of_sq_error_v1": 0.8842432663600381,
+    "y_excluding_far_v1": 0.01599004710678634,
+    "c2r_rmse_norm_v1": 0.043845916678592285,
+    "r2c_rmse_norm_v1": 0.04192968425863428,
+    "reg_frac_beyond_cutoff_v2": 0.11739999999999995,
+    "c2r_frac_beyond_cutoff_v2": 0.11496,
+    "r2c_frac_beyond_cutoff_v2": 0.1892,
+    "far_share_of_sq_error_v2": 0.8599096189027652,
+    "y_excluding_far_v2": 0.0176605432255154,
+    "c2r_rmse_norm_v2": 0.032875994250625776,
+    "r2c_rmse_norm_v2": 0.051911055391369205,
+    "sens_rigid_300_y": 0.043075953876987524,
+    "sens_rigid_300_iterations": 115,
+    "sens_rigid_300_converged": true,
+    "sens_rigid_300_fitness": 0.8327,
+    "sens_sim_300_y": 0.04567134869203813,
+    "sens_sim_300_scale": 0.8746416358410053,
+    "sens_sim_300_iterations": 168,
+    "sens_sim_300_converged": true,
+    "sens_sim_300_fitness": 0.8902
+  },
+  "rigid_60": {
+    "y": 0.04289850132239366,
+    "fitness": 0.83125,
+    "qc": "caution",
+    "scale": 1.000000000000002,
+    "iterations": 60,
+    "converged": false,
+    "reg_frac_beyond_cutoff": 0.16874999999999996,
+    "c2r_frac_beyond_cutoff": 0.16578,
+    "r2c_frac_beyond_cutoff": 0.16789,
+    "far_share_of_sq_error": 0.8842432663600381,
+    "y_excluding_far": 0.01599004710678634,
+    "c2r_rmse_norm": 0.043845916678592285,
+    "r2c_rmse_norm": 0.04192968425863428,
+    "transform": [
+      [
+        0.9996478747013481,
+        0.026513848084896718,
+        0.0010688614568322126,
+        0.07462911838406001
+      ],
+      [
+        -0.026498381977124907,
+        0.9995702205122733,
+        -0.012538341901691015,
+        -0.05501452211208815
+      ],
+      [
+        -0.0014008417745211233,
+        0.012505603735141122,
+        0.9999208206240854,
+        0.16494180399221284
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "similarity_60": {
+    "y": 0.043448755274535664,
+    "fitness": 0.8826,
+    "qc": "caution",
+    "scale": 0.8762057162555498,
+    "iterations": 60,
+    "converged": false,
+    "reg_frac_beyond_cutoff": 0.11739999999999995,
+    "c2r_frac_beyond_cutoff": 0.11496,
+    "r2c_frac_beyond_cutoff": 0.1892,
+    "far_share_of_sq_error": 0.8599096189027652,
+    "y_excluding_far": 0.0176605432255154,
+    "c2r_rmse_norm": 0.032875994250625776,
+    "r2c_rmse_norm": 0.051911055391369205,
+    "transform": [
+      [
+        0.8758173939526435,
+        0.020858994551175188,
+        0.015660523465455697,
+        0.24605335166130343
+      ],
+      [
+        -0.020555536317704865,
+        0.8758005897996647,
+        -0.016948570209766808,
+        -0.18013604743503206
+      ],
+      [
+        -0.016056761055379884,
+        0.016573667420879262,
+        0.8759017931089836,
+        -0.7171750861154381
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "rigid_long": {
+    "y": 0.043075953876987524,
+    "fitness": 0.8327,
+    "qc": "caution",
+    "scale": 0.9999999999999987,
+    "iterations": 115,
+    "converged": true,
+    "reg_frac_beyond_cutoff": 0.1673,
+    "c2r_frac_beyond_cutoff": 0.16423,
+    "r2c_frac_beyond_cutoff": 0.16495,
+    "far_share_of_sq_error": 0.8839616981749018,
+    "y_excluding_far": 0.016054092122053422,
+    "c2r_rmse_norm": 0.04406599355466541,
+    "r2c_rmse_norm": 0.042062617808035906,
+    "transform": [
+      [
+        0.999612234646738,
+        0.02782764684903293,
+        -0.0010012069688165245,
+        0.07083026428479919
+      ],
+      [
+        -0.027838129840697928,
+        0.9995317079439874,
+        -0.01270446148222434,
+        -0.05850883983395154
+      ],
+      [
+        0.000647202844011956,
+        0.012727406861828197,
+        0.9999187938243007,
+        0.17002168547229407
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "similarity_long": {
+    "y": 0.04567134869203813,
+    "fitness": 0.8902,
+    "qc": "caution",
+    "scale": 0.8746416358410053,
+    "iterations": 168,
+    "converged": true,
+    "reg_frac_beyond_cutoff": 0.10980000000000001,
+    "c2r_frac_beyond_cutoff": 0.10752,
+    "r2c_frac_beyond_cutoff": 0.18629,
+    "far_share_of_sq_error": 0.8705668314332191,
+    "y_excluding_far": 0.017789671553597036,
+    "c2r_rmse_norm": 0.03419852691867727,
+    "r2c_rmse_norm": 0.054792380303213435,
+    "transform": [
+      [
+        0.8739244540249352,
+        0.029069688944238333,
+        0.02022357506793684,
+        0.3469768502662802
+      ],
+      [
+        -0.028712192398617848,
+        0.8740309994567244,
+        -0.015601703207630411,
+        -0.19151479882714906
+      ],
+      [
+        -0.020727995839154544,
+        0.014925023283049687,
+        0.8742686000395543,
+        -0.6791866604311791
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "reference": {
+    "identifier": "ARF_Dog_FAST_DENSE_Geometry_50_v1",
+    "path": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_50_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_50_v1.obj",
+    "sha256": "8da052d2cc4068b93dcc98b6ad9f25b160a1b62931bc3f620bf213a8e3b76cac",
+    "vertex_count": 33570,
+    "triangle_count": 67136,
+    "bounding_box_diagonal": 3.987058965155269
+  },
+  "candidate": {
+    "identifier": "ARF_Dog_FD_Random_30_Seed_20260824_v1",
+    "path": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FD_Random_30_Seed_20260824_v1/analysis_geometry/ARF_Dog_FD_Random_30_Seed_20260824_v1.obj",
+    "sha256": "723f1b47930771e5ed184b5011cbcf79778a95102305d808e1e38eae4c0edd38",
+    "vertex_count": 30984,
+    "triangle_count": 61964
+  }
+}

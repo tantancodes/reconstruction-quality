@@ -1,0 +1,28 @@
+{
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "conditions": [
+    "global",
+    "localized"
+  ],
+  "epochs": 400,
+  "eval_every": 10,
+  "n_train": 3000,
+  "n_val": 600,
+  "n_test": 600,
+  "threads": 4,
+  "out": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/synthetic-coverage-gap",
+  "runs": "/Users/tristan/Documents/bd3d-reconstruction-quality/runs/synthetic",
+  "resume": true,
+  "nmax": 60,
+  "torch": "2.15.0",
+  "numpy": "2.5.4",
+  "sklearn": "1.9.1",
+  "python": "3.14.7",
+  "wall_seconds": 726.2
+}

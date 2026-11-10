@@ -1,0 +1,58 @@
+  global    seed=0 mean      MAE  36.01 deg  (0s)
+  global    seed=0 ridge     MAE  12.15 deg  (0s)
+  global    seed=0 pointnet  MAE  12.33 deg  (22s)
+  global    seed=0 attention MAE   7.29 deg  (84s)
+  global    seed=1 mean      MAE  35.24 deg  (0s)
+  global    seed=1 ridge     MAE  12.18 deg  (0s)
+  global    seed=1 pointnet  MAE  13.51 deg  (22s)
+  global    seed=1 attention MAE   7.46 deg  (89s)
+  global    seed=2 mean      MAE  34.29 deg  (0s)
+  global    seed=2 ridge     MAE  12.12 deg  (0s)
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/numpy/linalg/_linalg.py:2423: RuntimeWarning: overflow encountered in det
+  r = _umath_linalg.det(a, signature=signature)
+  global    seed=2 pointnet  MAE  12.03 deg  (26s)
+  global    seed=2 attention MAE   6.70 deg  (88s)
+  global    seed=3 mean      MAE  34.11 deg  (0s)
+  global    seed=3 ridge     MAE  12.46 deg  (0s)
+  global    seed=3 pointnet  MAE  14.07 deg  (21s)
+  global    seed=3 attention MAE   6.74 deg  (96s)
+  global    seed=4 mean      MAE  34.82 deg  (0s)
+  global    seed=4 ridge     MAE  12.37 deg  (0s)
+  global    seed=4 pointnet  MAE  13.01 deg  (30s)
+resuming: keeping [('global', 0), ('global', 1), ('global', 2), ('global', 3)]
+  global    seed=4 mean      MAE  34.82 deg  (0s)
+  global    seed=4 ridge     MAE  12.37 deg  (0s)
+  global    seed=4 pointnet  MAE  13.01 deg  (29s)
+  global    seed=4 attention MAE   7.51 deg  (97s)
+  localized seed=0 mean      MAE  32.80 deg  (0s)
+  localized seed=0 ridge     MAE  27.24 deg  (0s)
+  localized seed=0 pointnet  MAE  27.88 deg  (23s)
+  localized seed=0 attention MAE  13.09 deg  (98s)
+  localized seed=1 mean      MAE  34.06 deg  (0s)
+  localized seed=1 ridge     MAE  28.08 deg  (0s)
+  localized seed=1 pointnet  MAE  29.49 deg  (29s)
+  localized seed=1 attention MAE  13.32 deg  (105s)
+  localized seed=2 mean      MAE  33.26 deg  (0s)
+  localized seed=2 ridge     MAE  27.90 deg  (0s)
+/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/site-packages/numpy/linalg/_linalg.py:2423: RuntimeWarning: overflow encountered in det
+  r = _umath_linalg.det(a, signature=signature)
+  localized seed=2 pointnet  MAE  28.90 deg  (28s)
+  localized seed=2 attention MAE  13.57 deg  (92s)
+  localized seed=3 mean      MAE  32.58 deg  (0s)
+  localized seed=3 ridge     MAE  27.07 deg  (0s)
+  localized seed=3 pointnet  MAE  28.58 deg  (23s)
+  localized seed=3 attention MAE  14.24 deg  (86s)
+  localized seed=4 mean      MAE  34.63 deg  (0s)
+  localized seed=4 ridge     MAE  28.21 deg  (0s)
+  localized seed=4 pointnet  MAE  29.26 deg  (23s)
+  localized seed=4 attention MAE  15.72 deg  (90s)
+
+condition  model      MAE (deg)        skill vs mean
+global     mean        34.89 ±  0.77   0.000 ± 0.000
+global     ridge       12.26 ±  0.15   0.649 ± 0.010
+global     pointnet    12.99 ±  0.83   0.627 ± 0.028
+global     attention    7.14 ±  0.39   0.795 ± 0.009
+localized  mean        33.47 ±  0.86   0.000 ± 0.000
+localized  ridge       27.70 ±  0.51   0.172 ± 0.009
+localized  pointnet    28.82 ±  0.63   0.139 ± 0.014
+localized  attention   13.99 ±  1.06   0.582 ± 0.027

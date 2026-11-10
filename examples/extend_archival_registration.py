@@ -1,13 +1,13 @@
 """Uniform bounded iteration-budget sensitivity check; preserves previous QC results."""
 from pathlib import Path
-import csv,sys
+import csv,os,sys
 from bd3d_quality.geometry_quality import compare_geometry
 from bd3d_quality.provenance import write_json
 
 
 def evaluate(output):
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
-    root=Path('/Users/tristan/Documents/BD3D_Test_Output')
+    root=Path(os.environ['BD3D_ARCHIVE_ROOT'])  # historical BD3D_Test_Output folder
     names=['ARF_Dog_FAST_DENSE_Geometry_50_v1','ARF_Dog_FD_Random_25_Seed_20260823_v1','ARF_Dog_FD_Random_25_Seed_20260824_v1']
     reference=next((root/names[0]/'analysis_geometry').glob('*.obj'))
     rows=[]

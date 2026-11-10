@@ -8,6 +8,9 @@ Stop rules:
   - watchdog stop     -> stop and report.
   - watchdog vanished (no <run>-resources.json): continue only if Metashape's run.json
                         says 'complete'; recorded as 'resources unrecorded'.
+  - alignment failure (Metashape completed alignment but too few cameras/tie points passed the
+                        configured criteria) -> recorded as a result in <run>-pilot-status.json
+                        ('outcome': 'alignment_failed'); the driver continues with the next manifest.
   - any other failure -> stop and report.
 The watchdog's stdout/stderr go to <run>-watchdog.log, opened before launch.
 Outputs are never deleted. Limit overrides and their reasons are recorded by the watchdog.
@@ -18,13 +21,15 @@ Outputs are never deleted. Limit overrides and their reasons are recorded by the
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-PY = '/Users/tristan/Documents/ChatGPT/bd3d/venv312/bin/python'
+# Interpreter with the licensed Metashape module (set BD3D_METASHAPE_PYTHON; see docs/METASHAPE.md).
+PY = os.environ.get('BD3D_METASHAPE_PYTHON', 'python3')
 RETRIES, WAIT = 3, 300
 
 
@@ -48,6 +53,22 @@ def license_preflight(log_path):
         f.write(line + '\n')
     print(line, flush=True)
     return ok
+
+
+def classify(res, run):
+    """Outcome of one attempt from the watchdog record (res, None if missing) and run.json (run)."""
+    msg = ' | '.join(f.get('message', '') for f in run.get('failures', []))
+    if res is None:
+        return 'ok_unrecorded' if run.get('status') == 'complete' else 'watchdog_vanished'
+    if res['status'] == 'complete' and run.get('status') == 'complete':
+        return 'ok'
+    if res.get('stop_reason') or res['status'] == 'watchdog_interrupted':
+        return 'watchdog_stop'
+    if 'license' in msg.lower():
+        return 'license'
+    if 'alignment failed' in msg.lower():
+        return 'alignment_failed'
+    return 'failed'
 
 
 def attempt(manifest, out, a):
@@ -81,20 +102,13 @@ def attempt(manifest, out, a):
               'image_quality_source': run.get('image_quality_source')}
     if res is None:
         status['note'] = 'resources unrecorded'
+    status['outcome'] = classify(res, run)
     out.with_name(out.name + '-pilot-status.json').write_text(json.dumps(status, indent=2) + '\n')
     print(f'[{stamp()}] {json.dumps(status)}', flush=True)
-    if res is None:
-        return 'ok_unrecorded' if run.get('status') == 'complete' else 'watchdog_vanished'
-    if res['status'] == 'complete' and run.get('status') == 'complete':
-        return 'ok'
-    if res.get('stop_reason') or res['status'] == 'watchdog_interrupted':
-        return 'watchdog_stop'
-    if 'license' in msg.lower():
-        return 'license'
-    return 'failed'
+    return status['outcome']
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--manifests', type=Path, nargs='+', required=True)
     ap.add_argument('--root', type=Path, required=True)
@@ -106,7 +120,7 @@ def main():
     ap.add_argument('--rss-gib', type=float, default=3)
     ap.add_argument('--memory-note')
     ap.add_argument('--image-quality-cache', type=Path, help='reuse per-image quality instead of analyzeImages')
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     caps = a.seconds * len(a.manifests) if len(a.seconds) == 1 else a.seconds
     if len(caps) != len(a.manifests):
         ap.error('give one --seconds value, or one per manifest')
@@ -122,6 +136,9 @@ def main():
                 sys.exit(3)
             result = attempt(manifest.resolve(), out, a)
             if result in ('ok', 'ok_unrecorded'):
+                break
+            if result == 'alignment_failed':
+                print(f'RESULT: {name} -> alignment failed (recorded; continuing)', flush=True)
                 break
             if result == 'license' and n < RETRIES:
                 print(f'license denied; waiting {WAIT}s before retry {n + 1}/{RETRIES}', flush=True)

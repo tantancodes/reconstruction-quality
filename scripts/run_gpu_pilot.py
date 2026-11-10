@@ -17,13 +17,14 @@ Outputs are never deleted. Limit overrides are recorded by the watchdog.
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-PY = '/Users/tristan/Documents/ChatGPT/bd3d/venv312/bin/python'
+PY = os.environ.get('BD3D_METASHAPE_PYTHON', 'python3')  # interpreter with the Metashape module
 ROOT = str(Path('~/Downloads/Jpg-processed').expanduser())
 MANIFESTS = REPO / 'experiments' / 'gpu-pilot-d8'
 OUT = REPO / 'results' / 'gpu-pilot-d8'

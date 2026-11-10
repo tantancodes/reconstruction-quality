@@ -1,254 +1,350 @@
-# BD3D reconstruction quality
+# Predicting photogrammetric reconstruction quality from camera layout
 
-A standalone, CPU-based research pipeline for archaeological photogrammetry inputs,
-controlled Metashape runs, stage metrics, reference-relative geometry agreement, and
-analysis tables. No training, prediction, neural networks, or ML frameworks.
+![PAHMA 5-613 coffin: reference cameras in a top-down polar view, with the cameras removed for one candidate run and the resulting coverage gap shaded](docs/figures/hero.png)
 
-## Setup on macOS
+## Key results
 
-From this repository, using Python 3.11 or later (development tested on 3.14.7):
+- **Evaluation audit:** 7 of 16 v1 labels were registration failures (frames rotated 135.7–166.9°; v1 0.042–0.044 vs v3 0.0033–0.0055). Three earlier claims are retracted: 5.7×, ρ −0.17 and 13.7% (`docs/figures/data/stats.json`, `results/bd3d-ml-claims-recheck/claims.csv`).
+- **Synthetic, localized gaps:** attention MAE 13.99 ± 1.06° vs Ridge 27.70 ± 0.51° and mean 33.47 ± 0.86°, over 5 seeds (`results/synthetic-coverage-gap/summary.csv`).
+- **Real data:** within each object, reprojection RMSE moved opposite to geometric error: ρ −0.68 for the dog (n=7), −0.90 for the coffin (n=5). The samples are small (`docs/figures/data/stats.json`).
+- **Pilot only (28 runs, 2 objects):** with one object held out, the set models (MAE 0.0035–0.0041) beat the mean (0.0108), while Ridge on summaries (0.0237) and reprojection RMSE (0.0395) fail (`results/pilot-real-v3-all/summary.csv`).
+
+This project asks whether the quality of a photogrammetric reconstruction can be predicted
+from the aligned camera layout alone, before the slow dense-reconstruction step. Each
+experiment removes images from a full capture of an archaeological object (at random, as a
+contiguous side, or as an elevation band) and reconstructs the rest in Agisoft Metashape. It
+then measures how far the resulting mesh is from a reconstruction made with all images. That
+distance is the label. The input to a model is the set of aligned cameras: where each camera
+is and which way it points. The repository holds the experiment pipeline with provenance
+tracking and a resource watchdog, a corrected geometric evaluator, a synthetic benchmark of
+set models, and a small real-data pilot on two objects. The real-data results are a pilot and
+should be read that way.
+
+## Motivation
+
+Dense reconstruction is the expensive step. The 145-image coffin reference took 3448 s
+(57.5 min) on a 16 GB laptop, even at reduced depth-map resolution (Metashape downscale 8)
+on the GPU (`results/overnight-2026-11-10/chain-status.json`, `ref145b_status`). Knowing
+after alignment that a capture will produce a poor mesh would save that time, and would tell
+the photographer where coverage is missing while the object is still available.
+
+The usual quick quality number, the reprojection RMSE from bundle adjustment, measures how
+consistent the retained observations are. It does not measure whether the whole object is
+covered. In the coffin runs the worst mesh had the *lowest* reprojection RMSE, and the best
+mesh had the highest:
+
+| coffin run | images | reprojection RMSE (px) | v3 label |
+|---|---|---|---|
+| `random30_s20261111` (worst) | 29 aligned | 0.67 | 0.0354 |
+| `side40_s1` (best) | 122 | 1.16 | 0.0080 |
+
+Source: `results/pahma-5-613-v2/labels-all.csv`.
+
+![Reprojection RMSE against v3 label for all 28 labelled runs](docs/figures/reprojection_vs_label.png)
+
+Spearman ρ between reprojection RMSE and the v3 label (source: `docs/figures/data/stats.json`):
+
+| runs | n | ρ |
+|---|---|---|
+| ARF dog, historical CPU runs | 16 | +0.10 |
+| ARF dog, GPU runs | 7 | −0.68 |
+| PAHMA 5-613 coffin, GPU runs | 5 | −0.90 |
+| all pooled | 28 | +0.57 |
+
+Within each GPU artifact, removing images lowered the reprojection RMSE while the geometry got
+worse. The pooled positive value reflects the difference between the two objects, not
+within-object quality.
+
+## Pipeline
+
+```mermaid
+flowchart LR
+    A[Photos<br/>full capture] --> B[Image subset<br/>manifest with SHA-256]
+    B --> C[Metashape alignment<br/>under resource watchdog]
+    C --> D[cameras.csv<br/>positions + view directions]
+    C --> E[Dense depth maps<br/>and mesh]
+    E --> F[Evaluator v3<br/>camera-initialized similarity ICP<br/>vs full-capture reference]
+    F --> G[Labels<br/>symmetric RMSE / bbox diagonal<br/>missing vs extra surface]
+    D --> H[Models<br/>mean, reprojection, Ridge,<br/>PointNet, attention]
+    G --> H
+```
+
+- **Label.** Symmetric RMSE between candidate and reference meshes after registration,
+  divided by the reference bounding-box diagonal. A label of 0.01 means an RMSE of 1% of
+  the object's diagonal.
+- **Breakdown.** *Missing surface* is reference surface the candidate does not reconstruct
+  (reference → candidate distances). *Extra surface* is candidate surface with no counterpart
+  in the reference (candidate → reference).
+- **Reference.** Each label is relative to a reconstruction from the full capture at the same
+  settings, not to ground truth.
+- **Traceability.** Every run records its manifest identity, settings, software versions,
+  stage timings and resource use. CLI and safeguard details are in
+  [docs/PIPELINE_REFERENCE.md](docs/PIPELINE_REFERENCE.md).
+
+## Findings
+
+### a. Evaluation audit: the first labels measured registration failure, not geometry
+
+![v1 and v3 labels against the rotation between each run's frame and the reference frame](docs/figures/evaluation_audit.png)
+
+The first evaluator (v1) registered each candidate mesh to the reference with rigid ICP,
+starting from a centroid shift and no rotation. Metashape reconstructions without markers are
+in arbitrary local frames, and v1 did not account for that.
+
+- **Frame rotation.** Among the 16 historical ARF dog runs, 7 were in frames rotated
+  135.7–166.9° from the reference. The other 9 were within 0.6–16.5°.
+- **What v1 measured.** ICP cannot recover a rotation that large from an identity start. All
+  7 large-rotation runs were flagged "caution" by v1 and received labels of 0.0421–0.0444,
+  a plateau set by misregistration. All 9 small-rotation runs were "pass".
+- **The fix (v3).** The initial transform is a similarity fit (rotation, translation,
+  uniform scale) of each run's camera centres onto the reference cameras over shared images.
+  ICP then refines it with uniform scale allowed. Runs where ICP scale and camera scale
+  disagree by more than 2.5% are flagged.
+- **Result.** All 16 runs pass QC with scale agreeing. Labels span 0.0031–0.0107, and the 7
+  formerly failed runs fall at 0.0033–0.0055.
+
+Sources: `docs/figures/data/evaluation_audit.csv` and `docs/figures/data/stats.json` (both
+derived from `results/geometry-labels-v3/reports/*.json`), and
+`results/geometry-labels-v3/labels_v3.csv`. Full write-up:
+`results/geometry-labels-v3/NOTES.md`.
+
+**Consequence for earlier results.** Three figures reported on the Aphoma `bd3d-ml` branch
+(`docs/RESULTS.md`) used v1 labels. Recomputed from the same modeling table with v3 labels,
+none of them holds:
+
+| claim (bd3d-ml, v1 labels) | reproduced with v1 | with v3 labels |
+|---|---|---|
+| central gap vs remove-strongest-overlap, 30 images: 5.7× higher error | 5.68× | 0.58× (central gap is lower) |
+| Spearman ρ, reprojection RMSE vs geometric error: −0.17 | −0.174 | +0.103 |
+| early-SfM Ridge, leave-one-condition-out RMSE improvement over reprojection baseline: 13.7% | 13.7% | −5.6% (worse) |
+| same model, improvement over image-count baseline: 11.2% | 11.2% | −0.5% |
+| same model, improvement over dummy: 10.7% | 10.7% | −12.0% |
+
+Source: `results/bd3d-ml-claims-recheck/claims.csv` (`scripts/recheck_bd3d_ml_claims.py`).
+
+### b. Synthetic benchmark: attention reads localized gaps, global summaries do not
+
+![Synthetic test MAE by model and condition](docs/figures/synthetic_mae.png)
+
+**Data.**
+- Synthetic camera sets of up to 60 cameras (`nmax` in the config file), each placed in a
+  random similarity frame and then normalized by centroid and median camera distance.
+- The target is the largest azimuthal coverage gap, in degrees.
+- *Global*: one elevation band, with the gap cut from all cameras.
+- *Localized*: a full lower ring plus an upper ring that contains the gap, so a model has to
+  find which cameras are missing.
+- 3000 training, 600 validation and 600 test sets per seed, 400 epochs, 5 seeds
+  (`results/synthetic-coverage-gap/config.json`).
+
+**Models.**
+- Ridge on rotation-invariant summaries: count, covariance eigenvalues, radial mean and std.
+- PointNet: a per-camera MLP followed by max-pooling.
+- Attention: one self-attention layer before the pooling.
+- The networks see a fresh random rotation of each set at every step.
+
+| model | global gap, MAE (°) | localized gap, MAE (°) |
+|---|---|---|
+| mean | 34.89 ± 0.77 | 33.47 ± 0.86 |
+| Ridge | 12.26 ± 0.15 | 27.70 ± 0.51 |
+| PointNet | 12.99 ± 0.84 | 28.82 ± 0.63 |
+| attention | **7.14 ± 0.39** | **13.99 ± 1.06** |
+
+Mean ± std over 5 seeds. Source: `results/synthetic-coverage-gap/summary.csv`.
+
+- **Global gap.** All three models beat the mean.
+- **Localized gap.** The global summaries and PointNet barely improve on the mean (skill
+  0.17 and 0.14). Attention, which lets cameras compare with each other before pooling,
+  keeps most of its skill (0.58). Skill values are from the same file.
+
+![Learning curves on the synthetic benchmark](docs/figures/learning_curves_synthetic.png)
+
+### c. Real data: how removal pattern shows up in the labels
+
+Two objects, each reconstructed at reduced depth-map resolution (Metashape downscale 8) on
+the GPU:
+- **ARF dog:** 50 photos in two 25-image rings.
+- **PAHMA 5-613 coffin:** 145 photos in three capture series: a circuit facing the walls, a
+  circuit at about 45°, and near top-down.
+
+Every candidate is scored against the full-capture reconstruction of its own object.
+
+![Example camera layouts for the dog and the coffin](docs/figures/camera_layouts.png)
+
+**ARF dog, against the 50-image reference.** Source: `results/gpu-pilot-d8-ext/labels.csv`.
+
+| run | images | v3 label | missing RMSE | extra RMSE | dominant (share of squared error) | reproj. RMSE (px) |
+|---|---|---|---|---|---|---|
+| random10 | 10 | 0.0225 | 0.0304 | 0.0094 | missing (91%) | 0.25 |
+| random15, seed 20261111 | 15 | 0.0091 | 0.0119 | 0.0050 | missing (85%) | 0.33 |
+| random15, seed 20261110 | 15 | 0.0085 | 0.0105 | 0.0059 | missing (76%) | 0.32 |
+| side40 (20 removed, one sector) | 30 | 0.0085 | 0.0101 | 0.0065 | missing (71%) | 0.43 |
+| side25 (12 removed, one sector) | 38 | 0.0078 | 0.0073 | 0.0083 | extra (56%) | 0.45 |
+| random20, seed 20261110 | 20 | 0.0072 | 0.0091 | 0.0044 | missing (82%) | 0.34 |
+| random20, seed 20261111 | 20 | 0.0062 | 0.0073 | 0.0050 | missing (68%) | 0.36 |
+
+**PAHMA 5-613 coffin, against the 145-image reference.** Source:
+`results/pahma-5-613-v2/labels-all.csv`. The failed run is from `docs/figures/data/real_runs.csv`.
+
+| run | images | v3 label | missing RMSE | extra RMSE | dominant (share of squared error) | reproj. RMSE (px) |
+|---|---|---|---|---|---|---|
+| random30, seed 20261111 | 29 aligned | 0.0354 | 0.0499 | 0.0039 | missing (99%) | 0.67 |
+| random60 | 60 | 0.0182 | 0.0257 | 0.0022 | missing (99%) | 0.93 |
+| drop_s3 (highest elevation cluster) | 95 | 0.0106 | 0.0139 | 0.0055 | missing (86%) | 0.90 |
+| drop_s2 (middle elevation cluster) | 107 | 0.0102 | 0.0080 | 0.0120 | extra (69%) | 0.98 |
+| side40_s1 (23 wall-level cameras, one sector) | 122 | 0.0080 | 0.0112 | 0.0015 | missing (98%) | 1.16 |
+| random30, seed 20261110 | 30 | — | — | — | alignment failed (7 of 30 cameras aligned) | 0.33 |
+
+All scored runs pass registration QC, and camera and ICP scale agree.
+
+![v3 label against number of images, per artifact, colored by removal type](docs/figures/label_vs_images.png)
+
+**What the tables show.**
+- **Random removal mostly loses surface.** In every random subset, missing surface is the
+  larger error component (68–99% of the squared error). It reaches 99% for the coffin at 60
+  and 30 images.
+- **A contiguous side costs less than the same number of images removed at random.**
+  - Dog: removing 20 images as one sector (side40, 30 used) scored 0.0085. That is about the
+    same as keeping only 15 random images (0.0085 and 0.0091).
+  - Coffin: removing 23 wall-level images as one sector scored 0.0080. Keeping 60 random
+    images scored 0.0182.
+  - These are designed comparisons on two objects, not a general rule.
+- **Extra surface dominates in two runs:** coffin drop_s2 and dog side25. Their candidate
+  meshes contain geometry the reference does not, which is consistent with noisier surfaces
+  where coverage is thinner.
+- **Too few images can stop the pipeline before any mesh exists.** One 30-image random coffin
+  subset aligned only 7 cameras. A useful model needs to predict that outcome as well as the
+  label.
+
+**Note on the coffin series runs.** The 45° and near-top-down series overlap in elevation
+(21–43° and 31–53° in the reference frame), so the pose-based clusters mix them. drop_s3
+removed the 50 highest cameras: 31 near-top-down and 19 from the 45° circuit. The wall-level
+circuit matches its capture series exactly. Source: `results/overnight-2026-11-10-summary.md`.
+
+### d. PILOT: model comparison on 28 real runs from 2 artifacts
+
+This is a feasibility check with very small, correlated data. It is not evidence that any
+model predicts reconstruction quality.
+
+**Data.** 28 runs: 16 historical CPU runs and 7 GPU runs of the ARF dog, plus 5 GPU runs of
+the coffin (`results/pilot-real-v3-all/runs.csv`).
+
+**Inputs and models.**
+- Inputs are the aligned cameras: positions centred on their centroid and divided by the
+  median camera distance, plus viewing directions. Training uses random-rotation
+  augmentation.
+- Models: the training mean, a linear fit on run reprojection RMSE, Ridge on global
+  summaries, and PointNet and attention set models (hidden size 32).
+
+**Evaluation.** Leave one run out (LORO) and leave one artifact out (LOAO), with 5 seeds for
+the networks. The other three models are deterministic, so their std is 0.
+
+| model | LORO MAE | LORO skill | LOAO MAE | LOAO skill |
+|---|---|---|---|---|
+| mean | 0.00461 | 0 | 0.01082 | 0 |
+| reprojection RMSE | 0.00422 | +0.08 | 0.03945 | −2.65 |
+| Ridge | **0.00303** | **+0.34** | 0.02365 | −1.19 |
+| PointNet | 0.00365 ± 0.00003 | +0.21 ± 0.01 | 0.00409 ± 0.00044 | +0.62 ± 0.04 |
+| attention | 0.00343 ± 0.00013 | +0.26 ± 0.03 | **0.00351 ± 0.00053** | **+0.68 ± 0.05** |
+
+Source: `results/pilot-real-v3-all/summary.csv`. Skill = 1 − MAE / MAE of the mean baseline.
+
+![PILOT: leave-one-artifact-out predicted against actual](docs/figures/pilot_loao.png)
+
+**Reading the table.**
+- **Leave one run out:** Ridge on global summaries does best. Subsets of the same capture
+  share images, so this scheme is optimistic.
+- **Leave one artifact out:** Ridge and the reprojection fit fail, because their inputs shift
+  between objects. Coffin runs have reprojection RMSE around 0.7–1.2 px, dog runs 0.25–0.45 px.
+  The set models stay in a plausible range but underpredict the worst coffin run (figure
+  above).
+- **The mean baseline is weak here** because it predicts the other object's mean, so the
+  positive LOAO skill values are inflated.
+- With two folds and 28 correlated runs, none of these differences is reliable.
+
+![Training loss of the pilot set models](docs/figures/learning_curves_pilot.png)
+
+## Limitations
+
+- **Tiny n.** There are 28 labelled real runs from 2 objects. Runs that share a capture are
+  correlated, and there are only two independent objects to hold out.
+- **Labels are reference-relative.** Each object is scored against its own full-capture
+  reconstruction, which has its own errors. The historical dog runs (CPU) and the GPU runs
+  use different references, so their labels are only roughly comparable.
+- **Reduced resolution.** All new runs use Metashape downscale 8 for depth maps, chosen to
+  fit a 16 GB laptop. Labels at full resolution may differ.
+- **Designed failures.** Most candidates remove images on purpose, so the label range
+  reflects the experimental design, not natural captures.
+- **The synthetic target is a proxy.** The synthetic benchmark predicts an angular gap, not
+  surface error. It shows the models can read camera layout, not that layout determines
+  reconstruction quality.
+- **The coffin elevation bands mix capture series** (see section c).
+
+## Next steps
+
+- A third artifact, so that leave-one-artifact-out has more than two folds.
+- Rerun the two coffin band removals on the true capture series. The capture-time split is
+  now fixed: it ignores a pause after the first or last photo.
+- Repeat a subset of runs at full depth-map resolution to measure how much downscale 8
+  changes the labels.
+- Predict alignment failure as a separate outcome.
+
+## Reproduce
+
+### Setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[local,test]'
+python -m pip install -e '.[test,ml]'
 python -m pytest -q
-bd3d-quality --help
-python examples/synthetic_workflow.py results/my-demo
 ```
 
-`numpy`, `Pillow`, and `scipy` are the core dependencies. CPU OpenCV is optional
-(`local` extra) for ORB descriptors; pytest is a development extra. No Open3D is
-required: Aphoma's research-branch geometry implementation already used NumPy and
-SciPy, allowing deterministic mesh sampling without Open3D's larger dependencies.
-`requirements-lock.txt` records the actual Python 3.14 development environment:
+Metashape is only needed to produce new reconstructions. It is licensed separately. Point
+`BD3D_METASHAPE_PYTHON` at an interpreter that can `import Metashape` (see `.env.example`
+and [docs/METASHAPE.md](docs/METASHAPE.md)). Photos, Metashape projects and meshes are not in
+this repository.
+
+### Figures and tables
+
+| output | command | inputs |
+|---|---|---|
+| all figures in `docs/figures/`, plus `docs/figures/data/stats.json` | `python scripts/make_figures.py` | `results/` CSVs in git. Camera layouts and learning curves use local run folders and `runs/synthetic` when present, otherwise the cached tables in `docs/figures/data/` |
+| synthetic benchmark table, TensorBoard logs | `python scripts/synthetic_coverage_gap.py` | none (about 12 min on 4 CPU threads) |
+| pilot table | `python scripts/pilot_set_models.py --output results/pilot-real-v3-all --coffin-labels results/pahma-5-613-v2/labels-all.csv` | label files and local `cameras.csv` of each run |
+| evaluation audit labels | `python scripts/rescore_camera_init_icp.py` (see its docstring) | historical meshes and camera tables (local) |
+| real-data label tables | `python scripts/score_runs_v3.py ...` then `python scripts/combine_labels.py ...` | local run folders (`raw-mesh.obj`, `cameras.csv`) |
+| bd3d-ml recheck | `python scripts/recheck_bd3d_ml_claims.py --dataset <bd3d>/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv --output results/bd3d-ml-claims-recheck` | the Aphoma modeling table (local) |
+| results notebook | `python scripts/build_results_notebook.py` | as for the figures |
+
+Script-by-script descriptions: [scripts/README.md](scripts/README.md).
+
+### TensorBoard
+
+Training logs for the synthetic benchmark are written to `runs/synthetic/<condition>/<model>/<seed>`.
+`runs/` is not in git. To browse them after running the benchmark:
 
 ```bash
-python -m pip install -r requirements-lock.txt
-python -m pip install --no-deps -e .
+tensorboard --logdir runs/synthetic
 ```
 
-This freeze is platform/interpreter-specific, not a cross-platform lock. For another
-interpreter use the version ranges in `pyproject.toml` and record a fresh freeze.
-Metashape is separately installed and licensed. Do not rename wheels to bypass
-Python compatibility checks. See [Metashape setup](docs/METASHAPE.md).
+The same curves are exported to `docs/figures/learning_curves_synthetic.png` by
+`scripts/make_figures.py`. That script also caches them in
+`docs/figures/data/learning_curves_synthetic.csv`, so the figure regenerates without the logs.
 
-## Workflow
+## Results notebook
 
-All output commands refuse to overwrite existing evidence. Choose a new output
-filename/directory for each analysis or reconstruction invocation. Commands return
-0 for success and 2 for validation, dependency, or scientific-QC failures.
+[notebooks/results.ipynb](notebooks/results.ipynb) is the visual companion to this page. It
+loads only saved CSVs and logs: example camera layouts, the synthetic benchmark, learning
+curves, the label tables and the pilot comparison. Rebuild it with
+`python scripts/build_results_notebook.py`.
 
-```bash
-bd3d-quality manifest create --root /path/to/photos --dataset-id object-001 \
-  --config config/alignment.json --description 'Capture condition and object' \
-  --output experiments/object-001.json
-bd3d-quality manifest inspect experiments/object-001.json
-bd3d-quality manifest validate experiments/object-001.json --root /path/to/photos \
-  --output results/validation.json
-bd3d-quality features extract experiments/object-001.json --root /path/to/photos \
-  --output results/image-features.json
-bd3d-quality features match experiments/object-001.json --root /path/to/photos \
-  --output results/pair-matches.json
-bd3d-quality reconstruct experiments/object-001.json --root /path/to/photos \
-  --output results/run-001
-```
+## Repository layout
 
-Manifest creation recursively selects `.jpg`, `.jpeg`, `.png`, `.tif`, `.tiff`, in
-sorted relative-path order. It does not silently omit unreadable supported files.
-For subsets, create a separate directory of selected images (or carefully construct
-an ordered manifest using the Python API), then validate. Never alter originals.
-Additional files appearing after manifest creation are excluded: the manifest is
-the explicit input set, rather than a live directory listing.
-
-A manifest stores dataset ID, description, ordered portable paths, SHA-256 hashes,
-byte counts, total count, effective configuration, schema version, creation time,
-software versions, initial status, and empty artifact/failure containers. Its stable
-condition ID hashes schema, dataset ID, ordered image records, count, and all
-configuration settings. It excludes absolute roots, descriptions, timestamps, and
-software discovery. Runtime software belongs to the run record and report
-compatibility checks. Order is significant. Experiment ID denotes a condition;
-each execution has a separate UUID run ID. Edit settings by creating a new manifest,
-not by reusing a project. The source manifest stays immutable; `run.json` records
-execution status, timestamps, settings, software, stage measurements and artifacts.
-
-### Geometry
-
-```bash
-bd3d-quality geometry compare results/run-001/raw-mesh.obj /path/to/reference.obj \
-  --reference-id scanner-or-baseline-ID --units mm --sample-count 10000 \
-  --output results/geometry.json
-```
-
-OBJ geometry only, including negative indices and fan triangulation. Use triangulated
-meshes; concave polygons may not be faithfully fan-triangulated. Input geometry is
-never edited. Specify shared units explicitly: reconstruction coordinates are not
-millimeters without an independent scale calibration. The runner does not establish
-physical scale or detect scale bars. Registering arbitrary-scale reconstructions
-against physical scanner data without prior calibration will fail or mislead.
-
-Rigid centroid-initialized point-to-point ICP records the transformation, fitness,
-inlier RMSE, correspondence count, settings, sample seed and hashes. It never
-rescales geometry. Major RMS-radius disagreement, failed registration, or reaching
-the iteration limit invalidates the comparison and suppresses distance metrics.
-Outputs include both directional nearest-sample statistics, symmetric squared
-Chamfer-style distance, and thresholded candidate coverage/reference completeness.
-These are **reference agreement**, not automatically physical accuracy. A reference
-reconstruction shares its own errors. See [methodology](docs/METHODOLOGY.md).
-
-### Reports
-
-```bash
-bd3d-quality report summarize experiments/object-001.json \
-  --features results/image-features.json --matches results/pair-matches.json \
-  --run results/run-001/run.json --geometry results/geometry.json \
-  --output results/summary-001.json
-bd3d-quality report build results/summary-001.json --output results/table-001
-```
-
-All summary attachments are optional. Geometry can be attached only when the
-candidate hash matches a raw OBJ recorded in the selected run. Standalone geometry
-fixtures remain separate from experiment summaries. Summaries embed all supplied
-records and source file hashes; every reported stage metric remains traceable.
-The output directory contains `experiments.csv`, `experiments.json`,
-`validation.json` (including status counts) and `feature_dictionary.json`.
-
-One row = one input/configuration condition with one explicitly selected run.
-Duplicate conditions are rejected, including repeat executions; select one run per
-condition deliberately. Preserve repeated runs separately for repeatability analysis.
-Different effective configurations, feature settings, recorded software signatures,
-references or geometry units are rejected from a single table. Build separate tables
-for incompatible strata. Missing attachments remain missing; JSON null and CSV
-empty cells never mean zero. Stage names prefix metric columns with `__`.
-
-## Architecture
-
-- `manifests.py`, `config.py`, `provenance.py`, `validation.py`: identity, image verification, typed settings, atomic output.
-- `image_features.py`, `local_match_features.py`: measurable image and pair descriptors.
-- `metashape_runner.py`, `reconstruction_metrics.py`: isolated licensed API, fresh projects, verified checkpoints, stage snapshots, raw exports.
-- `geometry_quality.py`: deterministic area-weighted sampling, rigid ICP and validity checks.
-- `reporting.py`, `cli.py`: explicit record joins, portable reports and commands.
-- `tests/`: provenance, corruption, reconstruction mocks, geometry, features, reporting, CLI and synthetic smoke coverage.
-- `config/`, `examples/`: fully specified profiles and redistributable synthetic workflow.
-- `experiments/`, `results/`: ignored local research records and artifacts.
-
-## Safeguards and limitations
-
-Fresh run directories are mandatory except explicit `--resume`. Resume accepts only
-clean, hashed checkpoints with matching identity/configuration and camera paths.
-It verifies project XML/data files and recorded artifact hashes; changes cause
-rejection. Failed or interrupted runs need a new directory. A `.run.lock` prevents
-concurrent writers. After a crash inspect the run and process before manually
-removing a stale lock; this does not make a failed project resumable. Hashes detect
-accidental changes, not malicious alteration of an entire ledger.
-
-No refinement, cleanup, texture creation, marker detection or physical scaling is
-implemented. Dense cloud and raw mesh are optional profiles; raw data are never
-cleaned or overwritten. Absent metrics have null values with reasons. Reprojection
-RMSE is calculated only from valid tie-point observations of aligned cameras when
-the installed API exposes the necessary methods. Other uncertainty statistics
-are not inferred. Metashape settings explicitly exposed here are versioned; API
-internal defaults remain dependent on the recorded 2.2.x version. Matching may
-still vary across hardware or repeated runs; identity does not imply deterministic
-numerical reconstruction.
-
-Read [audit](docs/AUDIT.md), [validation record](docs/VALIDATION.md),
-[feature definitions](docs/FEATURE_DICTIONARY.md), [attribution](docs/ATTRIBUTION.md),
-and [future statistical/ML work](FUTURE_ML.md). Optional plots and mesh
-postprocessing are deliberately outside the initial implementation. Never commit
-private photos, archaeological geometry, credentials, environments or generated
-research results. Publication instructions are in [GitHub setup](docs/PUBLISHING.md).
-
-## Resource-safe reconstruction and controlled pilot
-
-For a 16 GB laptop, use the watchdog in `bd3d_quality.resource_monitor` rather than
-launching the original-raster mesh profile unattended. Its macOS pressure/swap,
-RSS, runtime, output-size and CPU-activity gates stop its own child process without
-deleting evidence. Metashape may override OpenMP worker requests; the watchdog
-also uses a 20% process run duty cycle. These are sampled safeguards, not hard
-kernel memory or storage limits. Stopped runs may retain stale lock files; preserve
-them and use a fresh output directory.
-
-A versioned `execution_protocol` is included in condition identity when present.
-It specifies four depth neighbors, small work groups, no mesh trimming,
-CustomFaceCount=0 (no automatic decimation), and no preview textures. Original
-manifests without this protocol retain their existing identity and behavior.
-`reconstruct --seed-checkpoint PATH` verifies an alignment-only parent's manifest,
-project and artifact hashes, then copies its project into a new output directory.
-Changing raster resolution requires an independently aligned derivative condition;
-it is never treated as the original checkpoint's condition.
-
-`examples/prepare_low_resolution.py` creates lossless, EXIF-oriented derivatives
-and a source-hash/derivation ledger. `experiment_design.py` defines deterministic
-subsets with explicit overlap/dependence metadata. `examples/run_bounded_pilot.py`
-requires a successful monitored baseline, records a measured-cost budget before
-execution, and runs at most three conditions sequentially. Geometry export checks
-use `examples/validate_exports.py` in an interpreter with Open3D installed; Open3D
-is not a core package dependency and no ML extras are needed.
-
-See [controlled experiment protocol](docs/CONTROLLED_EXPERIMENTS.md) for settings,
-selection strategies, cancellation rules, pre-execution budgets and scientific
-limitations. The original 38-image historical subset remains unresolved; newly
-sampled 38-image conditions are explicitly distinct.
-
-Current continuation outcome: **resource-blocked; no newly completed dense/mesh
-validation or new pilot executions**. The safety gates stopped original-raster and
-derivative attempts on swap growth or timeout. A separately labeled archival
-stratum now contains three real mesh observations with Open3D checks, image-hash
-joins and reference-relative geometry measurements. These do not establish new-run
-success or ground-truth accuracy. Latest automated suite: **74 passed**. See the
-[actual measurements and remaining prerequisites](docs/VALIDATION.md#resource-safe-pre-ml-continuation--2026-11-06).
-
-## Lightweight archival table (no reconstruction)
-
-The reviewed array-ready dataset is `results/pytorch-ready-archival-v2/`: **3 archival
-observations, 2 provisional non-self reference labels, 1 object group**. It includes
-a CSV/JSON table, plain float32 NumPy arrays with boolean masks, explicit input-only
-and post-refinement feature lists, target definitions, file/row provenance hashes,
-and a leakage/dependence audit. Baseline self-comparison targets are masked; physical
-accuracy and dense-point counts are missing. No train/test split or model is fitted.
-It is format-ready, not statistically training-ready. See
-[dataset columns, verification, and remaining blockers](docs/TABULAR_DATASET.md).
-
-The independently measured dimensional/surface pathway is preserved as a future
-extension: see [its protocol, schemas and CLI](docs/DIMENSIONAL_ACCURACY.md).
-It does not change the archival tables or convert reprojection error into physical
-accuracy. Current research focus: historical alignment-consistency prediction from
-photographs before alignment; no new reconstruction or model training is required
-for dataset inventory and metadata preparation.
-
-## Current study: historical alignment-consistency prediction
-
-The active objective is predicting historical Metashape **pixel reprojection RMS
-from photographs before alignment**. It is not physical mesh-accuracy prediction.
-The current local dataset is `results/historical-alignment-recovered-v2/`:
-33 verified historical RMSE labels (1 priority Drive PDF + 32 local archival
-reports), including 29 additional labels recovered from ARF Dog. There are 35
-manifest/cache-linked feature rows, 29 with numeric labels, all from one artifact.
-The 145 candidate PAHMA 5-613 JPEGs still lack exact report/input association.
-Small PAHMA 5-1405 metadata links 113 camera labels to candidate TIFF stems but
-contains no verified pixel RMSE or photo paths. The 61.6 MB PDF was not downloaded.
-No row passes the strict readiness gate; session/settings gaps and dependent
-observations prevent meaningful grouped evaluation. No models were trained.
-See [recovery findings and exact missing files](docs/HISTORICAL_ALIGNMENT_RECOVERY.md)
-and the [preserved initial inventory and CLI](docs/HISTORICAL_ALIGNMENT_DATASET.md).
-The dimensional/surface extension and all previous datasets remain available.
-
-The [2026-11-07 provenance/readiness audit](docs/PROVENANCE_READINESS.md) clarifies
-the five disconnected 5-1405 alignment components and provides a
-[deterministic report-to-photo protocol](docs/PHOTO_PROVENANCE_PROTOCOL.md).
-Counts remain 33 verified historical labels, 29 label-and-feature pairs and zero
-strict-ready observations or eligible held-out groups. No Dog-derived examples
-were added. The 6-19929 collection is a prospective acquisition lead; the separate
-shared-drive archive link currently returns 404 through the connector.
-
-## EXPLORATORY / NOT VALIDATED — Dog development interface
-
-The new [exploratory analysis and loader guide](docs/EXPLORATORY_ARF_DOG.md) covers
-the existing **29 paired runs, 18 overlapping image sets and one ARF Dog artifact**.
-Plots, missingness, correlations, repeat audits and float32 development arrays are
-in `results/exploratory-arf-dog-v2/`; start with `report.html`.
-`load_alignment_arrays` defaults to the unchanged strict gate (zero real rows);
-exploratory access is explicit and carries its own status and original flags.
-An optional within-Dog mean/Ridge script is prepared but **has not been run**.
-No model training, new image processing, reconstruction or large download occurred.
+| path | contents |
+|---|---|
+| `src/bd3d_quality/` | package: manifests and provenance, Metashape runner, resource watchdog, geometry evaluation, reporting, CLI |
+| `scripts/` | experiment, evaluation, model and figure scripts ([index](scripts/README.md)) |
+| `tests/` | unit tests (Metashape is mocked) |
+| `results/` | saved labels, summaries and run records cited above (raw run folders are local-only) |
+| `docs/figures/` | README figures and the derived tables behind them |
+| `docs/` | [pipeline reference](docs/PIPELINE_REFERENCE.md), [methodology](docs/METHODOLOGY.md), [Metashape setup](docs/METASHAPE.md), [audit](docs/AUDIT.md), [attribution](docs/ATTRIBUTION.md), [status history](docs/STATUS_HISTORY.md) |

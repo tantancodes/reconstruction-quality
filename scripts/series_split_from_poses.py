@@ -6,7 +6,9 @@ Pose method (frame-independent):
   3. up axis u = direction of least spread of the d_i (smallest PCA eigenvector),
      sign chosen so that the mean elevation is positive (cameras mostly above);
   4. elevation_i = asin(d_i . u); 1-D k-means (k clusters, quantile init) on elevation.
-Capture-time method: split capture order at the (k-1) largest EXIF time gaps.
+Capture-time method: split capture order at the (k-1) largest EXIF time gaps, taking gaps in
+descending order and skipping any that would leave a series with fewer than --min-series-size
+photos (a pause after the first or last photo is a test shot, not a series boundary).
 Clusters are relabelled 1..k by increasing mean elevation.
 
   python3 scripts/series_split_from_poses.py --cameras results/pahma-5-613-v1/ref145/cameras.csv \
@@ -51,6 +53,26 @@ def kmeans_1d(x, k, iters=100):
     return remap[lab] + 1, c[order]
 
 
+def capture_time_cuts(seconds, k, min_series=3):
+    """Split points (index of first photo of each new series) from the k-1 largest gaps.
+
+    seconds[i] is the gap between photo i and photo i+1. Gaps are accepted largest first, and
+    a gap is skipped if any resulting series would hold fewer than min_series photos.
+    Returns (sorted cut indices, accepted gaps as (seconds, cut index), largest first).
+    """
+    n = len(seconds) + 1
+    accepted = []
+    for s, i in sorted(((s, i + 1) for i, s in enumerate(seconds)), key=lambda t: (-t[0], t[1])):
+        if len(accepted) == k - 1:
+            break
+        bounds = [0, *sorted([c for _, c in accepted] + [i]), n]
+        if min(b - a for a, b in zip(bounds, bounds[1:])) >= min_series:
+            accepted.append((s, i))
+    if len(accepted) < k - 1:
+        raise ValueError(f'cannot form {k} series of at least {min_series} photos')
+    return sorted(c for _, c in accepted), accepted
+
+
 def exif_time(path):
     from PIL import Image
     e = Image.open(path).getexif()
@@ -63,6 +85,8 @@ def main():
     ap.add_argument('--cameras', type=Path, required=True)
     ap.add_argument('--images', type=Path)
     ap.add_argument('--k', type=int, default=3)
+    ap.add_argument('--min-series-size', type=int, default=3,
+                    help='capture-time split ignores gaps that would leave a smaller series')
     ap.add_argument('--output', type=Path, required=True)
     a = ap.parse_args()
     labels, P, V = load(a.cameras)
@@ -84,9 +108,9 @@ def main():
     time_series, gaps = None, []
     if a.images:
         ts = [exif_time(a.images.expanduser() / f'{l}.jpg') for l in labels]
-        g = [((ts[i + 1] - ts[i]).total_seconds(), i + 1) for i in range(len(ts) - 1)]
-        cuts = sorted(i for _, i in sorted(g, reverse=True)[:a.k - 1])
-        gaps = [dict(after=labels[i - 1], before=labels[i], seconds=s) for s, i in sorted(g, reverse=True)[:a.k - 1]]
+        cuts, acc = capture_time_cuts([(ts[i + 1] - ts[i]).total_seconds() for i in range(len(ts) - 1)],
+                                      a.k, a.min_series_size)
+        gaps = [dict(after=labels[i - 1], before=labels[i], seconds=s) for s, i in acc]
         time_series = np.searchsorted(cuts, np.arange(len(labels)), side='right') + 1
         # relabel capture-time groups by mean elevation so labels are comparable
         means = [elev[time_series == j].mean() for j in range(1, a.k + 1)]
@@ -100,7 +124,7 @@ def main():
         for i, l in enumerate(labels):
             out.writerow([i, l, round(float(elev[i]), 2), round(float(az[i]), 2), int(pose_series[i]),
                         '' if time_series is None else int(time_series[i])])
-    summary = {'k': a.k, 'centre': c.tolist(), 'up_axis': u.tolist(), 'pca_eigenvalues': w.tolist(),
+    summary = {'k': a.k, 'min_series_size': a.min_series_size, 'centre': c.tolist(), 'up_axis': u.tolist(), 'pca_eigenvalues': w.tolist(),
                'cluster_mean_elevation_deg': centres.round(2).tolist(),
                'pose_counts': {int(j): int((pose_series == j).sum()) for j in range(1, a.k + 1)},
                'pose_elevation_range_deg': {int(j): [round(float(elev[pose_series == j].min()), 1),

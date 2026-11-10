@@ -1,0 +1,228 @@
+{
+  "artifacts": {},
+  "configuration": {
+    "cpu_only": false,
+    "depth_downscale": 8,
+    "depth_filter": "MildFiltering",
+    "generic_preselection": true,
+    "keypoint_limit": 40000,
+    "match_downscale": 1,
+    "min_aligned_cameras": 2,
+    "min_alignment_fraction": 0.8,
+    "min_valid_tie_points": 1,
+    "profile": "mesh",
+    "profile_version": 1,
+    "reference_preselection": false,
+    "tiepoint_limit": 4000
+  },
+  "created_at": "2026-11-10T05:59:47.490016+00:00",
+  "dataset_id": "pahma-5-613-processed-145",
+  "description": "PAHMA 5-613: 30 random images (seed 20261110), mesh, Metal GPU, depth_downscale 8",
+  "experiment_id": "bd3d-1cff1726efb65c094f4ba4bc91c796b02e9331b5b3b587a76ba151acf1c23e6b",
+  "failures": [],
+  "image_count": 30,
+  "images": [
+    {
+      "path": "_MG_4754.jpg",
+      "sha256": "919a68aa5191007e2355c1ec213f4168cf89f579997b74ff6a8757d7333e39f1",
+      "size_bytes": 3219417
+    },
+    {
+      "path": "_MG_4756.jpg",
+      "sha256": "3e77d114cb9f210a41ba758646a140f1110392249f593b5d2482ff5d03622251",
+      "size_bytes": 3326549
+    },
+    {
+      "path": "_MG_4757.jpg",
+      "sha256": "4324562fb361ef9a7ae2f646d86f9b0f6c927b7bf1e73f461fd25e9d3138a2fe",
+      "size_bytes": 3250950
+    },
+    {
+      "path": "_MG_4758.jpg",
+      "sha256": "1b39f862d7a9950178dddc5d40ac5cd3694591c4a1a949daeb7128f37299586e",
+      "size_bytes": 3213560
+    },
+    {
+      "path": "_MG_4767.jpg",
+      "sha256": "aebfa0f906867c4dcd31004a96c17a1eb23b243dcc32219e6117babeca76d065",
+      "size_bytes": 2147394
+    },
+    {
+      "path": "_MG_4768.jpg",
+      "sha256": "0fa455e2ed8013a74d3c3d1500465309c2f2963d89497d969262ebaefa81baf5",
+      "size_bytes": 1878931
+    },
+    {
+      "path": "_MG_4774.jpg",
+      "sha256": "3c11024dcabbaeb5aaad731f5fab5f36b3b4c2d995fbb87a490083a1558fa62e",
+      "size_bytes": 2918875
+    },
+    {
+      "path": "_MG_4781.jpg",
+      "sha256": "f054b459c1a05182d655e34edd6f447382e8c645b381bd8c2450ea730059fa0a",
+      "size_bytes": 2262491
+    },
+    {
+      "path": "_MG_4783.jpg",
+      "sha256": "705c37ba8e9c9e7825447d9e99fa72f59ca395cc228f95c69f863219e18491e5",
+      "size_bytes": 2969420
+    },
+    {
+      "path": "_MG_4787.jpg",
+      "sha256": "e8f05ae0a877e391eb7e34366242435718ca4e6d54ab77a7853dc26264f0b3be",
+      "size_bytes": 2976942
+    },
+    {
+      "path": "_MG_4792.jpg",
+      "sha256": "f4fbe703f7c39142b51e3a525c3aa026cf50a923bb36115d80a4e97f2be408bd",
+      "size_bytes": 2304004
+    },
+    {
+      "path": "_MG_4794.jpg",
+      "sha256": "0760a8cb4d6700ae473b0bb1ce8af1faed705e9dd352e6cf95433fc3b75305b5",
+      "size_bytes": 2426394
+    },
+    {
+      "path": "_MG_4800.jpg",
+      "sha256": "acb75341035971918c205e1976a44a5cad4ea083647d428a08b31bd104f7b57d",
+      "size_bytes": 2626312
+    },
+    {
+      "path": "_MG_4805.jpg",
+      "sha256": "2e01aee23d3161425011a33ff773358876bbc5dc6e131cafe53ecc7735349918",
+      "size_bytes": 2005061
+    },
+    {
+      "path": "_MG_4806.jpg",
+      "sha256": "1363c9468a0ad42b2d97c27d413bfb49da0738ba8e6e1374caf3e62aaddd8ab4",
+      "size_bytes": 2185570
+    },
+    {
+      "path": "_MG_4809.jpg",
+      "sha256": "14a12ee67b91e19463fa1d8698eb71c0064fbb339ab030d74c8e7ecb185a76a8",
+      "size_bytes": 1827898
+    },
+    {
+      "path": "_MG_4824.jpg",
+      "sha256": "4068d620c446d948c39e72a7537eaede23e8c32301e204f3951104a5385092b4",
+      "size_bytes": 2467794
+    },
+    {
+      "path": "_MG_4829.jpg",
+      "sha256": "068c970a44b1e1986c179779a36982467abfea0b86bc559b55e64182c29c9bb7",
+      "size_bytes": 2704366
+    },
+    {
+      "path": "_MG_4831.jpg",
+      "sha256": "0ebfa16955b164d41b472129b5e704485181634d54883589e947d879a369e649",
+      "size_bytes": 2675421
+    },
+    {
+      "path": "_MG_4838.jpg",
+      "sha256": "99e2b628aff7f18366ec0558a800f116d0c56faab39af11bfc3b53c232010535",
+      "size_bytes": 3879195
+    },
+    {
+      "path": "_MG_4842.jpg",
+      "sha256": "69d89673fe6677e071b815f3db8cf3d8d1e682c4aa4b5b8395c95d4d94df8a38",
+      "size_bytes": 3564765
+    },
+    {
+      "path": "_MG_4843.jpg",
+      "sha256": "1edb6ce42436d444dd98a3eeee2e43b770077d28d3fae7849a64182dc6d27d60",
+      "size_bytes": 3673807
+    },
+    {
+      "path": "_MG_4850.jpg",
+      "sha256": "e43e0e540dc7dd172935b5dfec189f248aee90d2446a817333c3b72f5430c78a",
+      "size_bytes": 2326834
+    },
+    {
+      "path": "_MG_4851.jpg",
+      "sha256": "b24573e199a32ee48273e2d8b7efcb45d14e7e014dcd0d16501e27a4a9af3f12",
+      "size_bytes": 1938391
+    },
+    {
+      "path": "_MG_4862.jpg",
+      "sha256": "206ecaeb476ebbd99093a28d6ae795f413dc60f02ccc6bbed334d978a17c4fab",
+      "size_bytes": 3034211
+    },
+    {
+      "path": "_MG_4868.jpg",
+      "sha256": "359cd6ecc5f2bf75b57372aea497c04cc41ce214f0afde61a0cdaf601ef24f8c",
+      "size_bytes": 3044110
+    },
+    {
+      "path": "_MG_4869.jpg",
+      "sha256": "69916c5dab330e14fed2364de1fce5dc56e6a0448c70397456a17de7d4ff335d",
+      "size_bytes": 3024208
+    },
+    {
+      "path": "_MG_4875.jpg",
+      "sha256": "bdc4753433ad8e217e347913c58eacf5c2098ac2ddb7592059ad9ac9e87771c5",
+      "size_bytes": 2891131
+    },
+    {
+      "path": "_MG_4886.jpg",
+      "sha256": "74e843adf588bb1eebd2f20c31730d6b9adcdc699dc9f0118d360fc9efe78053",
+      "size_bytes": 2089520
+    },
+    {
+      "path": "_MG_4891.jpg",
+      "sha256": "f90497c143caf8a33a2bb2a4cf73587427f4a1c85497f5c8f2c1de458ff7817f",
+      "size_bytes": 2299099
+    }
+  ],
+  "schema_version": 1,
+  "selection": {
+    "indices_zero_based": [
+      6,
+      8,
+      9,
+      10,
+      19,
+      20,
+      26,
+      33,
+      35,
+      39,
+      44,
+      46,
+      52,
+      57,
+      58,
+      61,
+      76,
+      81,
+      83,
+      90,
+      94,
+      95,
+      102,
+      103,
+      114,
+      120,
+      121,
+      127,
+      138,
+      143
+    ],
+    "order": "parent manifest order, not assumed acquisition order",
+    "parent_experiment_id": "bd3d-a118b4ce72d7d322351c4edd3cbf55877b070448b531da92c97cbada3f8570c6",
+    "parent_image_list_signature": "4be4d719b126d131824756db40faa951ad6deb22490d175bb4776f1a1861d930",
+    "seed": 20261110,
+    "strategy": "random",
+    "version": 1
+  },
+  "software": {
+    "Pillow": "13.0.0",
+    "bd3d-quality": "0.1.0",
+    "numpy": "2.5.4",
+    "opencv-python-headless": null,
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "scipy": "1.18.1"
+  },
+  "status": "prepared",
+  "warnings": []
+}

@@ -1,3 +1,7 @@
+> **Superseded (2026-11-10).** This note predates the modeling work. The project now has a
+> synthetic benchmark and a small real-data pilot (see the [README](README.md)); the cautions
+> below about grouping, leakage and independent objects still apply.
+
 # Future statistical and model research — not implemented
 
 Available outputs: condition identity, dataset/object ID, ordered image hashes,

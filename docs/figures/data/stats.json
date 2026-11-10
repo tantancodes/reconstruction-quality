@@ -1,0 +1,86 @@
+{
+  "camera_layouts": {
+    "dog_side40": {
+      "used": 30,
+      "reference_cameras": 50,
+      "largest_gap_per_band_deg": [
+        164.8,
+        165.0
+      ]
+    },
+    "dog_random10": {
+      "used": 10,
+      "reference_cameras": 50,
+      "largest_gap_per_band_deg": [
+        151.2,
+        104.8
+      ]
+    },
+    "coffin_side40_s1": {
+      "used": 122,
+      "reference_cameras": 145,
+      "largest_gap_per_band_deg": [
+        133.3,
+        58.6,
+        95.9
+      ]
+    },
+    "coffin_random30_s20261111": {
+      "used": 29,
+      "reference_cameras": 145,
+      "largest_gap_per_band_deg": [
+        123.5,
+        229.9,
+        148.3
+      ]
+    }
+  },
+  "evaluation_audit": {
+    "runs": 16,
+    "large_rotation_runs": 7,
+    "large_rotation_deg_range": [
+      135.7,
+      166.9
+    ],
+    "small_rotation_deg_range": [
+      0.6,
+      16.5
+    ],
+    "large_rotation_qc_v1": [
+      "caution"
+    ],
+    "small_rotation_qc_v1": [
+      "pass"
+    ],
+    "label_v1_range_large_rotation": [
+      0.0421,
+      0.0444
+    ],
+    "label_v3_range_all": [
+      0.0031,
+      0.0107
+    ],
+    "label_v3_range_large_rotation": [
+      0.0033,
+      0.0055
+    ]
+  },
+  "reprojection_vs_label": {
+    "arf-dog (historical CPU)": {
+      "n": 16,
+      "spearman_rho": 0.103
+    },
+    "arf-dog (GPU d8)": {
+      "n": 7,
+      "spearman_rho": -0.679
+    },
+    "pahma-5-613 (GPU d8)": {
+      "n": 5,
+      "spearman_rho": -0.9
+    },
+    "all": {
+      "n": 28,
+      "spearman_rho": 0.568
+    }
+  }
+}

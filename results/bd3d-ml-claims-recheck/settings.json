@@ -1,0 +1,7 @@
+{
+  "dataset_rows": 16,
+  "dataset_file": "fast_dense_geometry_modeling_dataset_v1.csv",
+  "labels": "results/geometry-labels-v3/labels_v3.csv",
+  "validation": "leave-one-condition-out = leave one run out (16 conditions, one run each)",
+  "model": "Ridge(alpha=1.0) with StandardScaler fitted in each training fold; dummy = training mean"
+}

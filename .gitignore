@@ -11,7 +11,33 @@ experiments/*
 !experiments/README.md
 results/*
 !results/README.md
+# result folders cited in the README (small CSV/JSON only)
+!results/bd3d-ml-claims-recheck/
 *.psx
 *.psz
 *.files/
 runs/
+
+# Local build output, notebooks scratch
+notebooks/.ipynb_checkpoints/
+# Photogrammetry inputs and outputs: never commit photos, projects or meshes
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.tif
+*.tiff
+*.TIF
+*.cr2
+*.CR2
+*.dng
+*.nef
+*.heic
+*.ply
+*.obj
+*.mtl
+*.glb
+*.gltf
+*.stl
+*.fbx
+*.npz

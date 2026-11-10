@@ -4,6 +4,7 @@ import argparse
 import csv
 import itertools
 import math
+import os
 from pathlib import Path
 import numpy as np
 from .provenance import read_json, write_json, sha256_file, digest
@@ -277,7 +278,8 @@ def validate_arrays(path):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--results',type=Path,default=Path('results'))
-    p.add_argument('--historical-root',type=Path,default=Path('/Users/tristan/Documents/BD3D_Test_Output'))
+    p.add_argument('--historical-root',type=Path,required='BD3D_ARCHIVE_ROOT' not in os.environ,
+                   default=os.environ.get('BD3D_ARCHIVE_ROOT'), help='historical BD3D_Test_Output folder (or set BD3D_ARCHIVE_ROOT)')
     p.add_argument('--output',type=Path,required=True)
     a=p.parse_args(); rows=prepare(a.results,a.historical_root,a.output)
     print(f'Prepared {len(rows)} observations, 2 reference-labeled rows, 1 object group: {a.output}')

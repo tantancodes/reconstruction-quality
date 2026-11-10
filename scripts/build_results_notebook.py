@@ -1,12 +1,14 @@
 """Build and execute the results notebook (loads saved CSVs/logs only; no training, no Metashape).
 
-Writes ~/bd3dtorch/analysis/pytorch_reconstruction_results.ipynb next to the original
-pytorch_reconstruction.ipynb (left untouched). Never overwrites: an existing output gets a
-numbered sibling instead. Executed in-process with jupyter_client (nbconvert is not installed).
+Writes notebooks/results.ipynb (paths inside are relative to the repository, so it works
+from any checkout). Never overwrites: an existing output gets a numbered sibling instead.
+Cells that need local-only data (TensorBoard logs in runs/, camera tables of ignored run
+folders) fall back to the exported PNGs in docs/figures/ when that data is absent. Executed in-process with jupyter_client (nbconvert is not installed).
 
   python3 scripts/build_results_notebook.py [--output PATH]
 """
 import argparse
+import os
 import queue
 from pathlib import Path
 
@@ -14,7 +16,7 @@ import nbformat
 from jupyter_client.manager import KernelManager
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT = Path('~/bd3dtorch/analysis/pytorch_reconstruction_results.ipynb').expanduser()
+DEFAULT = REPO / 'notebooks' / 'results.ipynb'
 
 MD, CODE = 'md', 'code'
 CELLS = [
@@ -36,14 +38,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from IPython.display import display, Markdown
 
-REPO = Path('/Users/tristan/Documents/bd3d-reconstruction-quality')
+REPO = Path('@REPO@').resolve()  # repository root, relative to this notebook
 R = REPO / 'results'
 SYN = R / 'synthetic-coverage-gap'
-PILOT = Path('@PILOT@')
-LABELS = {'arf-dog': Path('@DOG@'), 'pahma-5-613': Path('@COFFIN@')}
+PILOT = REPO / '@PILOT@'
+LABELS = {'arf-dog': REPO / '@DOG@', 'pahma-5-613': REPO / '@COFFIN@'}
+FIG = REPO / 'docs' / 'figures'
 pd.set_option('display.float_format', lambda v: f'{v:.4g}')
 for name, p in [('synthetic', SYN / 'summary.csv'), ('pilot', PILOT / 'summary.csv'), *LABELS.items()]:
-    print(f'{name:12s} {p}  {"found" if Path(p).exists() else "MISSING"}')"""),
+    print(f'{name:12s} {Path(p).relative_to(REPO)}  {"found" if Path(p).exists() else "MISSING"}')"""),
     (MD, """## Setup
 
 **Synthetic benchmark.** Sets of camera centres around an object, each in an arbitrary similarity
@@ -59,7 +62,7 @@ with a fresh random rotation per example per step.
 Same networks (smaller), with view directions added to the camera positions, plus a
 reprojection-RMSE baseline. Leave-one-run-out, and leave-one-artifact-out when two artifacts exist."""),
     (CODE, """cfg = json.loads((SYN / 'config.json').read_text())
-print({k: v for k, v in cfg.items() if not isinstance(v, (dict, list))})"""),
+print({k: v for k, v in cfg.items() if not isinstance(v, (dict, list)) and k not in ('out', 'runs')})"""),
     (MD, "## Results\n### 1. Example camera sets, largest azimuth gap shaded (reference frame)"),
     (CODE, """def frame(P, V):
     # object centre = least-squares point nearest all viewing rays; up = least-spread direction
@@ -86,6 +89,10 @@ examples = [('arf-dog', R / 'gpu-pilot-d8/ref50', R / f'gpu-pilot-d8{sub}/{run}'
 examples += [('pahma-5-613', R / 'pahma-5-613-v2/ref145b', R / f'pahma-5-613-v2/{run}')
              for run in ['drop_s3', 'side40_s1', 'random30_s20261110']]
 examples = [e for e in examples if (e[1] / 'cameras.csv').exists() and (e[2] / 'cameras.csv').exists()]
+if not examples:  # run folders are local-only; show the exported figure instead
+    from IPython.display import Image
+    display(Image(filename=str(FIG / 'camera_layouts.png')))
+    raise SystemExit
 fig, axes = plt.subplots(1, max(len(examples), 1), figsize=(4.2 * max(len(examples), 1), 3.4), squeeze=False)
 for ax, (art, ref, cand) in zip(axes[0], examples):
     rc = cams(ref / 'cameras.csv')
@@ -118,6 +125,10 @@ display(syn)"""),
          "Real pilot: training loss of the first leave-one-run-out fold."),
     (CODE, """from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 runs = REPO / 'runs' / 'synthetic'
+if not runs.exists():  # TensorBoard logs are not in git; show the exported figures
+    from IPython.display import Image
+    display(Image(filename=str(FIG / 'learning_curves_synthetic.png')), Image(filename=str(FIG / 'learning_curves_pilot.png')))
+    raise SystemExit
 fig, axes = plt.subplots(1, 3, figsize=(14, 3.6))
 for ax, cond in zip(axes[:2], conds):
     for m in ['pointnet', 'attention']:
@@ -225,9 +236,9 @@ def execute(nb, cwd):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--output', type=Path, default=DEFAULT)
-    ap.add_argument('--pilot', type=Path, default=REPO / 'results/pilot-real-v3')
+    ap.add_argument('--pilot', type=Path, default=REPO / 'results/pilot-real-v3-all')
     ap.add_argument('--dog-labels', type=Path, default=REPO / 'results/gpu-pilot-d8-ext/labels.csv')
-    ap.add_argument('--coffin-labels', type=Path, default=REPO / 'results/pahma-5-613-v2/labels.csv')
+    ap.add_argument('--coffin-labels', type=Path, default=REPO / 'results/pahma-5-613-v2/labels-all.csv')
     a = ap.parse_args()
     out = a.output
     n = 2
@@ -236,12 +247,18 @@ def main():
         n += 1
     nb = nbformat.v4.new_notebook()
     nb.metadata['kernelspec'] = {'name': 'python3', 'display_name': 'Python 3', 'language': 'python'}
-    sub = {'@PILOT@': str(a.pilot.resolve()), '@DOG@': str(a.dog_labels.resolve()), '@COFFIN@': str(a.coffin_labels.resolve())}
+    rel = lambda x: os.path.relpath(Path(x).resolve(), REPO)
+    sub = {'@REPO@': os.path.relpath(REPO, out.parent.resolve()), '@PILOT@': rel(a.pilot),
+           '@DOG@': rel(a.dog_labels), '@COFFIN@': rel(a.coffin_labels)}
     def fill(src):
         for k, v in sub.items():
             src = src.replace(k, v)
+        if 'raise SystemExit' in src:  # cells with an early fallback run inside a function
+            body = src.replace('raise SystemExit', 'return')
+            src = 'def _cell():\n' + '\n'.join('    ' + l if l else l for l in body.splitlines()) + '\n\n_cell()'
         return src
     nb.cells = [nbformat.v4.new_markdown_cell(s) if k == MD else nbformat.v4.new_code_cell(fill(s)) for k, s in CELLS]
+    out.parent.mkdir(parents=True, exist_ok=True)
     execute(nb, out.parent)
     nbformat.write(nb, str(out))
     print(f'wrote {out}')

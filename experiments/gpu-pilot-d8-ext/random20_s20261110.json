@@ -1,0 +1,168 @@
+{
+  "artifacts": {},
+  "configuration": {
+    "cpu_only": false,
+    "depth_downscale": 8,
+    "depth_filter": "MildFiltering",
+    "generic_preselection": true,
+    "keypoint_limit": 40000,
+    "match_downscale": 1,
+    "min_aligned_cameras": 2,
+    "min_alignment_fraction": 0.8,
+    "min_valid_tie_points": 1,
+    "profile": "mesh",
+    "profile_version": 1,
+    "reference_preselection": false,
+    "tiepoint_limit": 4000
+  },
+  "created_at": "2026-11-06T08:11:03.267497+00:00",
+  "dataset_id": "arf-dog-baseline-50-verified",
+  "description": "GPU dog failure case: 20 random images (seed 20261110), depth_downscale 8, Metal GPU",
+  "experiment_id": "bd3d-efcedfac4525ed380ccacdb1935271fce704686665ba38d2c907c992f05df25a",
+  "failures": [],
+  "image_count": 20,
+  "images": [
+    {
+      "path": "_MG_4925.jpg",
+      "sha256": "b06b04706d88fa45c2741cb11f1e1b2707c71ee8d48a6657724bf60a9bb49255",
+      "size_bytes": 2372453
+    },
+    {
+      "path": "_MG_4928.jpg",
+      "sha256": "8a53df062ed1610137903956264820e7e88486ea216be08157e2cc3f12804612",
+      "size_bytes": 2534971
+    },
+    {
+      "path": "_MG_4931.jpg",
+      "sha256": "0958488631c1b5e0fb1d8ef33e15dc49698bbf5e3c19fcd76b61513390aa42dc",
+      "size_bytes": 2491138
+    },
+    {
+      "path": "_MG_4936.jpg",
+      "sha256": "9f54d7be949d164465fda6e49b8a46f6b47d19d47a8a2c02b0d9aa6a330d9030",
+      "size_bytes": 2096457
+    },
+    {
+      "path": "_MG_4937.jpg",
+      "sha256": "3857b34ab841a607daa056de6a1565401879bf70efcd066e28a02bc425b1410f",
+      "size_bytes": 2095365
+    },
+    {
+      "path": "_MG_4939.jpg",
+      "sha256": "db3585feeab978856123fb952c8aec7af95646b13867cf81fdb480ea70a4d23a",
+      "size_bytes": 2345433
+    },
+    {
+      "path": "_MG_4940.jpg",
+      "sha256": "814410caf00be23191b1a06bced1882d4d0465d268d9d0e0c58bfd67634232ae",
+      "size_bytes": 2411409
+    },
+    {
+      "path": "_MG_4949.jpg",
+      "sha256": "750b73cfd42fca6ec185505ea5802699ce0588e8a3c1beafa816563638e4c4eb",
+      "size_bytes": 2463639
+    },
+    {
+      "path": "_MG_4954.jpg",
+      "sha256": "ca851a9049853499ee0c7abb0864f32e1e50128ad33b988ddab4473578172eb2",
+      "size_bytes": 2465826
+    },
+    {
+      "path": "_MG_4955.jpg",
+      "sha256": "aede412891c2cbed8f47e13d27d35a84565f52656fbc708952e2bd462361c622",
+      "size_bytes": 2413208
+    },
+    {
+      "path": "_MG_4958.jpg",
+      "sha256": "5b95ad909af505cdbb16d3e3d2f117a0213953c5dd7b00110ba9640c43994830",
+      "size_bytes": 2397759
+    },
+    {
+      "path": "_MG_4959.jpg",
+      "sha256": "73ca51713899edebe3ba570630476d02953f123a1464d378964961e76283e444",
+      "size_bytes": 2509186
+    },
+    {
+      "path": "_MG_4960.jpg",
+      "sha256": "1c2ddddab847e5d43b146cf7fc95f00c37a663cda21bf43dd6a01e49080800df",
+      "size_bytes": 2471215
+    },
+    {
+      "path": "_MG_4962.jpg",
+      "sha256": "1b4cc410f852ed2966ae1918afbfc3e07fdf5869d168ec212b7fd1fe4a672e51",
+      "size_bytes": 2466105
+    },
+    {
+      "path": "_MG_4963.jpg",
+      "sha256": "341ec942aa7787dab6462dc5fe79505b076315ace6ff4384041d034be0b03f9d",
+      "size_bytes": 2450868
+    },
+    {
+      "path": "_MG_4965.jpg",
+      "sha256": "bb24de95097dcc46700eb1202e24a7ca42cd868a20070a537c1eea18c2cf4e23",
+      "size_bytes": 2352005
+    },
+    {
+      "path": "_MG_4966.jpg",
+      "sha256": "a190690f62c0827d185725a3572849b06bdda050676c2f7daba3d624a4be9b0a",
+      "size_bytes": 2281825
+    },
+    {
+      "path": "_MG_4969.jpg",
+      "sha256": "88e0a0c638b199553649abd21516244be65cef550dd869beadb76b1d66669477",
+      "size_bytes": 2260864
+    },
+    {
+      "path": "_MG_4971.jpg",
+      "sha256": "ee0c0f5e294f0c60f159380edc3d3d34921f817d4273694c6ab9cb519405b9b4",
+      "size_bytes": 2405877
+    },
+    {
+      "path": "_MG_4972.jpg",
+      "sha256": "05eadcebb70a787d8c2214ba890787f0dc4dcfb5619be90907df7864a75524c9",
+      "size_bytes": 2430915
+    }
+  ],
+  "schema_version": 1,
+  "selection": {
+    "indices_zero_based": [
+      8,
+      11,
+      14,
+      19,
+      20,
+      22,
+      23,
+      25,
+      30,
+      31,
+      34,
+      35,
+      36,
+      38,
+      39,
+      41,
+      42,
+      45,
+      47,
+      48
+    ],
+    "order": "parent manifest order, not assumed acquisition order",
+    "parent_experiment_id": "bd3d-dba187b5e4845d7b11cd08670f9e5d29379b185385970d2617d650c482d39572",
+    "parent_image_list_signature": "e825fadef27638f8569b53785a1be9600c351df9efffb49b6aaa5dd41c627c2d",
+    "seed": 20261110,
+    "strategy": "random",
+    "version": 1
+  },
+  "software": {
+    "Pillow": "12.3.0",
+    "bd3d-quality": "0.1.0",
+    "numpy": "2.5.4",
+    "opencv-python-headless": "4.14.0.94",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "scipy": "1.18.1"
+  },
+  "status": "prepared",
+  "warnings": []
+}

@@ -13,6 +13,10 @@ dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "scipy>=1.14,<2"]
 local = ["opencv-python-headless>=4.10,<5"]
 test = ["pytest>=8,<10"]
 analysis = ["matplotlib>=3.9,<4"]
+# models, figures and the results notebook (scripts/synthetic_coverage_gap.py,
+# scripts/pilot_set_models.py, scripts/make_figures.py, scripts/build_results_notebook.py)
+ml = ["torch>=2.4", "scikit-learn>=1.5", "pandas>=2.2", "matplotlib>=3.9,<4", "tensorboard>=2.17",
+      "nbformat>=5.10", "jupyter_client>=8", "ipykernel>=6"]
 
 [project.scripts]
 bd3d-quality = "bd3d_quality.cli:main"

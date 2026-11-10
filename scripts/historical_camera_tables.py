@@ -11,7 +11,7 @@ Features and labels then come from the same alignment. For each label row:
 The original projects are only ever read. No alignment, no dense, no saving.
 
 Needs the Metashape interpreter:
-  PYTHONPATH=src /Users/tristan/Documents/ChatGPT/bd3d/venv312/bin/python -B \
+  PYTHONPATH=src $BD3D_METASHAPE_PYTHON -B \
       scripts/historical_camera_tables.py --labels <label csv> --output results/hist16-old-alignment
 """
 import argparse

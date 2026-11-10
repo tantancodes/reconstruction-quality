@@ -25,7 +25,7 @@ def fake_api():
             self.point_cloud = None
             self.model = None
         def addPhotos(self, paths):
-            self.cameras = [NS(transform=None, photo=NS(path=p)) for p in paths]
+            self.cameras = [NS(transform=None, photo=NS(path=p), meta={}) for p in paths]
         def matchPhotos(self, **kwargs):
             self.match_settings = kwargs
         def alignCameras(self):

@@ -269,3 +269,37 @@ def test_failed_alignment_still_writes_cameras_csv(dataset, tmp_path, fake_api, 
         run_reconstruction(m, root, out, api=fake_api)
     assert (out / 'cameras.csv').read_text().count('False') == 3
     assert any(a['path'] == 'cameras.csv' for a in read_json(out / 'run.json')['artifacts'])
+
+
+def test_runner_reuses_image_quality_cache(dataset, tmp_path, fake_api, monkeypatch):
+    import csv
+    from bd3d_quality.metashape_runner import IMAGE_QUALITY_CACHE_COLUMNS
+    def must_not_run(self, cameras): raise AssertionError('analyzeImages must be skipped with a cache')
+    monkeypatch.setattr(fake_api.Chunk, 'analyzeImages', must_not_run, raising=False)
+    root, m = dataset
+    cache = tmp_path / 'iq.csv'
+    with cache.open('w', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=IMAGE_QUALITY_CACHE_COLUMNS); w.writeheader()
+        for i, e in enumerate(m['images']):
+            w.writerow({'path': e['path'], 'sha256': e['sha256'], 'image_quality': f'0.{i + 5}',
+                        'source_run_id': 'ref', 'source_experiment_id': 'exp', 'metashape_version': '2.2.1'})
+    out = tmp_path / 'run'
+    r = run_reconstruction(m, root, out, api=fake_api, image_quality_cache=cache)
+    src = r['image_quality_source']
+    assert src['method'] == 'cache' and src['source_run_id'] == 'ref' and src['images'] == len(m['images'])
+    with (out / 'cameras.csv').open(newline='') as f:
+        assert [row['image_quality'] for row in csv.DictReader(f)] == [f'0.{i + 5}' for i in range(len(m['images']))]
+
+
+def test_runner_rejects_incomplete_image_quality_cache(dataset, tmp_path, fake_api):
+    import csv
+    from bd3d_quality.metashape_runner import IMAGE_QUALITY_CACHE_COLUMNS
+    root, m = dataset
+    cache = tmp_path / 'iq.csv'
+    with cache.open('w', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=IMAGE_QUALITY_CACHE_COLUMNS); w.writeheader()
+        e = m['images'][0]
+        w.writerow({'path': e['path'], 'sha256': e['sha256'], 'image_quality': '0.9',
+                    'source_run_id': 'ref', 'source_experiment_id': 'exp', 'metashape_version': '2.2.1'})
+    with pytest.raises(ValueError, match='image-quality cache has no value'):
+        run_reconstruction(m, root, tmp_path / 'run', api=fake_api, image_quality_cache=cache)

@@ -20,3 +20,5 @@ Findings (2026-11-09):
   stays at 0.0116 with 2.5% candidate-side outliers (likely extra geometry).
 - Conclusion: the ~0.043 "caution" plateau was a registration artifact, not surface
   error. A v3 label should use camera-initialised registration.
+
+> Superseded: see `results/geometry-labels-v3/NOTES.md` for the v1 registration-failure write-up and the valid labels (`labels_v3.csv`).

@@ -14,10 +14,15 @@ from .provenance import now, write_json, read_json
 
 
 def signal_group(pid, signum):
-    """Child may exit between poll and signal; never signal another PID."""
+    """Child may exit between poll and signal; never signal another PID.
+
+    macOS raises PermissionError (EPERM) rather than ProcessLookupError when the
+    group has already exited or only zombies remain. Treat both as 'gone' so the
+    cleanup path still writes the resources JSON and removes the lock.
+    """
     try:
         os.killpg(pid, signum)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 
@@ -53,7 +58,7 @@ def directory_bytes(path):
 
 
 def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False, swap_growth_mib=256,
-                  limit_note=None, seconds_note=None):
+                  limit_note=None, seconds_note=None, rss_gib=3, rss_note=None):
     output = Path(output).resolve()
     if output.exists():
         state = read_json(output / 'run.json') if allow_cloned_checkpoint else {}
@@ -67,7 +72,7 @@ def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False
     os.close(fd)
     child = None
     result = {'status': 'not_started', 'started_at': now(), 'baseline': baseline, 'samples': [], 'command': command,
-              'limits': {'seconds': seconds, 'output_bytes': 2_000_000_000, 'RSS_bytes': 3*1024**3,
+              'limits': {'seconds': seconds, 'output_bytes': 2_000_000_000, 'RSS_bytes': int(rss_gib*1024**3),
                          'swap_growth_MiB': swap_growth_mib, 'critical_pressure_level': 4,
                          'OpenMP_requested_thread_limit': 2, 'CPU_run_fraction': 0.2, 'CPU_percent_sustained_limit': 300}}
     overrides = {}
@@ -75,6 +80,8 @@ def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False
         overrides['swap_growth_MiB'] = {'default': 256, 'used': swap_growth_mib, 'note': limit_note}
     if seconds != 900:
         overrides['seconds'] = {'default': 900, 'used': seconds, 'note': seconds_note}
+    if rss_gib != 3:
+        overrides['RSS_GiB'] = {'default': 3, 'used': rss_gib, 'note': rss_note}
     if overrides:
         result['limit_overrides'] = overrides
     start = time.monotonic()
@@ -100,7 +107,7 @@ def run_monitored(command, output, *, seconds=900, allow_cloned_checkpoint=False
                 sample['output_bytes'] = directory_bytes(output)
                 result['samples'].append(sample)
                 reason = limit_reason(sample, baseline, sample['elapsed_seconds'], sample['output_bytes'], seconds=seconds,
-                                      swap_growth_mib=swap_growth_mib)
+                                      swap_growth_mib=swap_growth_mib, rss_bytes=int(rss_gib*1024**3))
                 high_cpu_samples = high_cpu_samples + 1 if sample['cpu_percent'] > 300 else 0
                 if high_cpu_samples >= 5: reason = 'CPU_concurrency_limit_not_respected'
                 if reason:
@@ -149,17 +156,21 @@ def main():
     p.add_argument('--swap-growth-mib', type=float, default=256,
                    help='system swap growth that stops the run (default 256); overrides are recorded')
     p.add_argument('--limit-note', help='reason for the swap-growth override, stored in the resources JSON')
+    p.add_argument('--rss-gib', type=float, default=3, help='process RSS limit in GiB (default 3); overrides are recorded')
+    p.add_argument('--rss-note', help='reason for the RSS override (required for it)')
     p.add_argument('--seconds-note', help='reason for a wall-time cap above 900 s (required for it), stored in the resources JSON')
     p.add_argument('command', nargs=argparse.REMAINDER)
     a = p.parse_args()
     command = a.command[1:] if a.command[:1] == ['--'] else a.command
-    if not command or not 0 < a.seconds <= 1800: p.error('command and timeout 1..1800 seconds required')
+    if not command or not 0 < a.seconds <= 7200: p.error('command and timeout 1..7200 seconds required')
+    if a.rss_gib != 3 and not a.rss_note: p.error('an RSS override needs --rss-note')
     if a.seconds > 900 and not a.seconds_note: p.error('a wall-time cap above 900 s needs --seconds-note')
     def interrupted(signum, frame):
         raise KeyboardInterrupt('watchdog received termination signal')
     signal.signal(signal.SIGTERM, interrupted)
     result = run_monitored(command, a.output, seconds=a.seconds, allow_cloned_checkpoint=a.allow_cloned_checkpoint,
-                           swap_growth_mib=a.swap_growth_mib, limit_note=a.limit_note, seconds_note=a.seconds_note)
+                           swap_growth_mib=a.swap_growth_mib, limit_note=a.limit_note, seconds_note=a.seconds_note,
+                           rss_gib=a.rss_gib, rss_note=a.rss_note)
     print(result['status'])
     return 0 if result['status'] == 'complete' else 2
 

@@ -40,7 +40,42 @@ def project_fingerprints(output):
     return {p.relative_to(output).as_posix(): sha256_file(p) for p in paths}
 
 
-def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_checkpoint=None):
+IMAGE_QUALITY_CACHE_COLUMNS = ['path', 'sha256', 'image_quality', 'source_run_id', 'source_experiment_id',
+                               'metashape_version']
+
+
+def apply_image_quality_cache(chunk, manifest, cache_path):
+    """Set camera.meta['Image/Quality'] from a cache CSV instead of running analyzeImages.
+
+    Every manifest image must have a cache row with the same SHA-256 and a finite value;
+    otherwise this raises (no silent partial cache). Returns the provenance record.
+    """
+    cache_path = Path(cache_path).resolve()
+    with cache_path.open(newline='') as f:
+        rows = {r['sha256']: r for r in csv.DictReader(f)}
+    cameras = list(chunk.cameras)
+    if len(cameras) != len(manifest['images']):
+        raise ValueError('camera count differs from manifest; cannot map image-quality cache')
+    sources = set()
+    for camera, entry in zip(cameras, manifest['images']):
+        row = rows.get(entry['sha256'])
+        if row is None or row['image_quality'] in ('', None):
+            raise ValueError(f'image-quality cache has no value for {entry["path"]}')
+        value = float(row['image_quality'])
+        if value != value or value in (float('inf'), float('-inf')):
+            raise ValueError(f'nonfinite cached image quality for {entry["path"]}')
+        camera.meta['Image/Quality'] = row['image_quality']
+        sources.add((row['source_run_id'], row['source_experiment_id'], row['metashape_version']))
+    if len(sources) != 1:
+        raise ValueError('image-quality cache rows come from more than one source run')
+    (run_id, experiment_id, version), = sources
+    return {'method': 'cache', 'cache_path': str(cache_path), 'cache_sha256': sha256_file(cache_path),
+            'source_run_id': run_id, 'source_experiment_id': experiment_id,
+            'source_metashape_version': version, 'images': len(cameras)}
+
+
+def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_checkpoint=None,
+                       image_quality_cache=None):
     require_valid(manifest, root)
     output = Path(output).resolve()
     config = ReconstructionConfig(**manifest['configuration'])
@@ -129,12 +164,18 @@ def run_reconstruction(manifest, root, output, *, resume=False, api=None, seed_c
         else:
             chunk = doc.addChunk()
             chunk.addPhotos([str(safe_path(root, e['path'])) for e in manifest['images']])
-            try:
-                # Writes camera.meta['Image/Quality'] for cameras.csv; never fatal.
-                chunk.analyzeImages(chunk.cameras)
-            except Exception as exc:
-                state['warnings'].append({'stage': 'image_analysis', 'field': 'image_quality',
-                                          'missing_reason': f'analyzeImages failed: {type(exc).__name__}: {exc}'})
+            if image_quality_cache is not None:
+                # Reuse per-image Image/Quality computed once on a parent run; verified by image SHA-256.
+                state['image_quality_source'] = apply_image_quality_cache(chunk, manifest, image_quality_cache)
+                write_json(output / 'run.json', state, replace=True)
+            else:
+                state['image_quality_source'] = {'method': 'analyzeImages'}
+                try:
+                    # Writes camera.meta['Image/Quality'] for cameras.csv; never fatal.
+                    chunk.analyzeImages(chunk.cameras)
+                except Exception as exc:
+                    state['warnings'].append({'stage': 'image_analysis', 'field': 'image_quality',
+                                              'missing_reason': f'analyzeImages failed: {type(exc).__name__}: {exc}'})
         completed = {s['stage'] for s in state['stages']}
 
         def checkpoint(stage, duration, operation_seconds=None):

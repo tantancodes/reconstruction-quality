@@ -87,6 +87,21 @@ def test_scale_check_flags_camera_icp_disagreement(tmp_path):
     assert abs(row['scale_ratio'] - 1) > ev.SCALE_TOLERANCE
 
 
+@pytest.mark.parametrize('text', ['v nan 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3', 'v 0 0 0\nf 1 2 3',
+                                  'v 0 0 0\nv 1 0 0\nv 0 1 0\nf 0 1 2', 'v 0 0 0\nv 1 0 0\nv 2 0 0\nf 1 2 3'])
+def test_invalid_mesh_rejected(tmp_path, text):
+    p = tmp_path / 'bad.obj'
+    p.write_text(text)
+    with pytest.raises(ValueError):
+        ev.sample_surface(ev.load_obj_mesh(p), 10, 0)
+
+
+def test_negative_obj_indices(tmp_path):
+    p = tmp_path / 'negative.obj'
+    p.write_text('v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n')
+    assert ev.load_obj_mesh(p).triangles.tolist() == [[0, 1, 2]]
+
+
 def test_qc_thresholds():
     assert [ev.qc(f) for f in (1.0, 0.95, 0.9499, 0.80, 0.79)] == ['pass', 'pass', 'caution', 'caution', 'manual_review']
 

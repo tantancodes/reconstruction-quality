@@ -420,6 +420,11 @@ loads only saved CSVs and logs: example camera layouts, the synthetic benchmark,
 curves, the label tables and the pilot comparison. Rebuild it with
 `python scripts/build_results_notebook.py`.
 
+[notebooks/pipeline_walkthrough.ipynb](notebooks/pipeline_walkthrough.ipynb) follows one coffin run
+(`side40_s1` against `ref145b`) from manifest to v3 label and checks the result exactly against
+`results/pahma-5-613-v2/labels-all.csv`. It needs the two local `raw-mesh.obj` files. Rebuild it with
+`python scripts/build_walkthrough_notebook.py`.
+
 ## Repository layout
 
 | path | contents |

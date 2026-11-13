@@ -100,7 +100,7 @@ To rebuild it: `python3 scripts/build_results_notebook.py --pilot results/pilot-
 ## Files and code changes (uncommitted)
 
 - **New scripts:**
-  - `scripts/overnight_chain.py`, `scripts/overnight_continue.py`
+  - `scripts/overnight_chain.py`, `scripts/overnight_continue.py` (now in `archive/scripts/`)
   - `scripts/make_dog_failure_manifests.py`, `scripts/combine_labels.py`
   - `scripts/pilot_set_models.py`, `scripts/build_results_notebook.py`
 - **Changed scripts:**

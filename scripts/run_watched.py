@@ -1,4 +1,4 @@
-"""Run one or more manifests sequentially under the watchdog (general form of run_gpu_pilot.py).
+"""Run one or more manifests sequentially under the watchdog (general form of archive/scripts/run_gpu_pilot.py).
 
 Stop rules:
   - preflight: before each job, a separate venv312 process checks Metashape.app.activated;

@@ -1,6 +1,6 @@
 # Geometry labels v2 — DO NOT USE label_v2 AS A TRAINING TARGET
 
-Produced by scripts/rescore_similarity_icp.py (no Metashape; historical label CSV
+Produced by scripts/rescore_similarity_icp.py (now archive/scripts/) (no Metashape; historical label CSV
 and reports hash-verified unchanged). Step 0 passed: the v1 evaluator re-run and
 this script's rigid path reproduce all 16 stored v1 labels exactly.
 

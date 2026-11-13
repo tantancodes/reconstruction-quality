@@ -20,7 +20,12 @@ Checks and diagnostics:
 
 No Metashape. The historical label CSV and reports are read only.
 
-  python3 scripts/rescore_similarity_icp.py \
+ARCHIVED: evaluator v2 is superseded by v3 (src/bd3d_quality/evaluation.py). It now uses
+the package's ICP loop and similarity fit (v2 = that loop from a centroid start); --fork
+is still needed to re-run the original v1 evaluator. labels_v2.csv was not re-generated
+after this change.
+
+  python archive/scripts/rescore_similarity_icp.py \
       --fork ~/Documents/ChatGPT/bd3d \
       --cameras results/hist16-old-alignment --output results/geometry-labels-v2
 """
@@ -37,19 +42,19 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
-QC = [(0.95, 'pass'), (0.80, 'caution'), (-1, 'manual_review')]  # historical METHODS.md rule
+from bd3d_quality import evaluation as ev
+from bd3d_quality.evaluation import qc, similarity_fit as fit
+from bd3d_quality.provenance import sha256_file
+
 SCALE_FLAG = 0.01  # |icp_scale / camera_scale - 1| above this -> scale_check = 'disagree'
 
 
-def qc(fitness):
-    return next(name for lo, name in QC if fitness >= lo)
-
-
 def sha256(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    return sha256_file(Path(path))
 
 
 def load_v1(fork):
+    """The original v1 evaluator from the Aphoma fork; used only to re-run v1 (step 0a)."""
     spec = importlib.util.spec_from_file_location('geometry_quality_v1', fork / 'analysis' / 'geometry_quality.py')
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod  # dataclasses look the module up here
@@ -57,44 +62,10 @@ def load_v1(fork):
     return mod
 
 
-def fit(source, target, with_scale):
-    """Least-squares rotation+translation (+ uniform scale) mapping source -> target."""
-    mu_s, mu_t = source.mean(0), target.mean(0)
-    A, B = source - mu_s, target - mu_t
-    U, S, Vt = np.linalg.svd(np.einsum('ni,nj->ij', A, B, optimize=False))
-    d = np.sign(np.linalg.det(Vt.T @ U.T)) or 1.0
-    D = np.diag([1.0, 1.0, d])
-    R = Vt.T @ D @ U.T
-    s = float((S * np.diag(D)).sum() / (A ** 2).sum()) if with_scale else 1.0
-    T = np.eye(4)
-    T[:3, :3] = s * R
-    T[:3, 3] = mu_t - s * R @ mu_s
-    return T
-
-
 def icp(source, target, max_distance, max_iterations, rel_tol, abs_tol, with_scale):
-    """v1 rigid_icp loop, with the inner fit optionally allowing uniform scale."""
-    T = np.eye(4)
-    T[:3, 3] = target.mean(0) - source.mean(0)
-    tree = cKDTree(target)
-    prev, it, converged = np.inf, 0, False
-    for it in range(1, max_iterations + 1):
-        moved = source @ T[:3, :3].T + T[:3, 3]
-        dist, idx = tree.query(moved, workers=1)
-        ok = dist <= max_distance
-        if ok.sum() < 3:
-            break
-        T = fit(moved[ok], target[idx[ok]], with_scale) @ T
-        rmse = float(np.sqrt(np.mean(dist[ok] ** 2)))
-        if rmse <= abs_tol or (np.isfinite(prev) and abs(prev - rmse) <= rel_tol * max(prev, 1e-15)):
-            converged = True
-            break
-        prev = rmse
-    moved = source @ T[:3, :3].T + T[:3, 3]
-    dist, _ = tree.query(moved, workers=1)
-    ok = dist <= max_distance
-    return {'transform': T, 'fitness': float(ok.mean()), 'iterations': it, 'converged': converged,
-            'scale': float(np.cbrt(np.linalg.det(T[:3, :3])))}
+    """The core ICP loop from a centroid start (v1/v2 initialisation)."""
+    return ev.icp(source, target, ev.centroid_start(source, target), max_distance, max_iterations,
+                  rel_tol, abs_tol, with_scale)
 
 
 def evaluate(v1, settings, ref_mesh, cand_mesh, with_scale, max_iterations):
@@ -127,15 +98,8 @@ def evaluate(v1, settings, ref_mesh, cand_mesh, with_scale, max_iterations):
 
 
 def camera_scale(cand_csv, ref_csv):
-    def load(p):
-        return {r['label']: np.array([float(r['x']), float(r['y']), float(r['z'])])
-                for r in csv.DictReader(open(p, newline='')) if r['x']}
-    a, b = load(cand_csv), load(ref_csv)
-    k = sorted(set(a) & set(b))
-    A, B = np.array([a[i] for i in k]), np.array([b[i] for i in k])
-    T = fit(A, B, True)
-    resid = np.sqrt((((A @ T[:3, :3].T + T[:3, 3]) - B) ** 2).sum(1).mean()) / np.sqrt(((B - B.mean(0)) ** 2).sum(1).mean())
-    return float(np.cbrt(np.linalg.det(T[:3, :3]))), len(k), float(resid)
+    T, n, resid = ev.camera_transform(ev.load_cameras(cand_csv), ev.load_cameras(ref_csv))
+    return ev.scale_of(T), n, resid
 
 
 def main():

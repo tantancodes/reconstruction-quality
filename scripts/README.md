@@ -20,9 +20,7 @@ runs in the project environment.
 | script | what it does |
 |---|---|
 | `run_watched.py` | **Metashape.** General driver: runs manifests in sequence under the resource watchdog. Checks the license before each job and retries license denials. Records alignment failures as results and continues; stops on any watchdog or resource stop. |
-| `run_gpu_pilot.py` | **Metashape.** Earlier driver used for the dog GPU pilot. Superseded by `run_watched.py`. |
 | `build_image_quality_cache.py` | Per-image quality from a finished reference run (one `analyzeImages` pass), reused by subset runs via `reconstruct --image-quality-cache`. |
-| `overnight_chain.py`, `overnight_continue.py` | **Metashape.** The unattended 2026-11-10 run: coffin candidates, dog failure cases, scoring, pilot models, notebook. Kept as the record of how those results were produced. |
 
 ## 3. Camera tables from historical projects
 
@@ -36,7 +34,6 @@ runs in the project environment.
 
 | script | what it does |
 |---|---|
-| `rescore_similarity_icp.py` | Evaluator v2 (similarity ICP from a centroid start). **Superseded**; kept because v2 labels are part of the audit. |
 | `rescore_camera_init_icp.py` | Evaluator v3 applied to the 16 historical runs, producing `results/geometry-labels-v3`. |
 | `score_runs_v3.py` | Evaluator v3 for new run folders (`cameras.csv` + `raw-mesh.obj`) against a reference run. |
 | `combine_labels.py` | One `labels.csv` per artifact, with missing-surface (reference→candidate) and extra-surface (candidate→reference) breakdown. |
@@ -55,3 +52,9 @@ runs in the project environment.
 |---|---|
 | `make_figures.py` | Every README figure (`docs/figures/*.png`), plus derived tables and `stats.json` in `docs/figures/data/`. |
 | `build_results_notebook.py` | Builds and executes `notebooks/results.ipynb` from saved results only. |
+
+## Archived
+
+`archive/scripts/` holds `rescore_similarity_icp.py` (evaluator v2, superseded by v3),
+`run_gpu_pilot.py` (superseded by `run_watched.py`) and `overnight_chain.py` /
+`overnight_continue.py` (the record of the unattended 2026-11-10 run). See `archive/README.md`.

@@ -25,3 +25,6 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `pytest -m local` re-scores the real runs (needs the local run folders); off by default.
+addopts = "-m 'not local'"
+markers = ["local: needs local run folders (meshes are not in git)"]

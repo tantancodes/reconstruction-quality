@@ -53,6 +53,7 @@ repositories needed. The core path is marked ★; the rest is the evaluation aud
 |---|---|
 | ★ `make_figures.py` | Every README figure (`docs/figures/*.png`), plus derived tables and `stats.json` in `docs/figures/data/`. |
 | ★ `build_results_notebook.py` | Builds and executes `notebooks/results.ipynb` from saved results only. |
+| `build_walkthrough_notebook.py` | Builds and executes `notebooks/pipeline_walkthrough.ipynb`: one coffin run (`side40_s1` vs `ref145b`) from manifest to label, checked exactly against `labels-all.csv`. Needs the two local `raw-mesh.obj` files. |
 
 ## Archived
 

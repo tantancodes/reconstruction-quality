@@ -151,6 +151,14 @@ photos; step 5 needs the local run folders; steps 6–7 run from files in git.
        --coffin-labels results/pahma-5-613-v2/labels-all.csv
    ```
 
+**Key files.**
+
+- `src/bd3d_quality/evaluation.py`: the scorer (evaluator v3): camera-initialized similarity ICP, then surface distances and the label.
+- `<run>/cameras.csv` and `<run>/raw-mesh.obj`: each run's aligned cameras (model input) and mesh (scored against the reference; local only).
+- `src/bd3d_quality/manifests.py` + `provenance.py`: image manifests with SHA-256 and experiment IDs, and run provenance records.
+- `scripts/synthetic_coverage_gap.py` and `scripts/pilot_set_models.py`: the synthetic benchmark and the real-data pilot models.
+- `scripts/make_figures.py`: every README figure and `docs/figures/data/stats.json`.
+
 ## Findings
 
 ### a. Evaluation audit: the first labels measured registration failure, not geometry

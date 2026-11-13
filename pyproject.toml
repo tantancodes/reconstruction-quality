@@ -7,12 +7,11 @@ name = "bd3d-quality"
 version = "0.1.0"
 description = "Traceable archaeological photogrammetry experiments and reference agreement"
 requires-python = ">=3.11"
-dependencies = ["numpy>=2.0,<3", "Pillow>=11,<13", "scipy>=1.14,<2"]
+dependencies = ["numpy>=2.0,<3", "Pillow>=11,<14", "scipy>=1.14,<2"]
 
 [project.optional-dependencies]
 local = ["opencv-python-headless>=4.10,<5"]
 test = ["pytest>=8,<10"]
-analysis = ["matplotlib>=3.9,<4"]
 # models, figures and the results notebook (scripts/synthetic_coverage_gap.py,
 # scripts/pilot_set_models.py, scripts/make_figures.py, scripts/build_results_notebook.py)
 ml = ["torch>=2.4", "scikit-learn>=1.5", "pandas>=2.2", "matplotlib>=3.9,<4", "tensorboard>=2.17",

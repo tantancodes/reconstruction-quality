@@ -13,6 +13,9 @@ results/*
 !results/README.md
 # result folders cited in the README (small CSV/JSON only)
 !results/bd3d-ml-claims-recheck/
+# Also tracked (added with git add -f): the small per-run inputs the pilot and figures need,
+# i.e. cameras.csv, metrics-initial_alignment.json and the v3 label CSVs/settings of each
+# scored run. Meshes, dense clouds and Metashape projects stay local.
 *.psx
 *.psz
 *.files/

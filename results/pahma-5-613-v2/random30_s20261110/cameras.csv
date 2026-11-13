@@ -1,0 +1,31 @@
+label,aligned,x,y,z,view_x,view_y,view_z,n_projections,reprojection_rmse_px,image_quality,missing_reasons
+_MG_4754,True,-1.8933856573751908,0.04391210477250918,-0.4304255939214049,0.019997845330090098,0.0007673239609293296,-0.9997997286437383,3759,0.20640985979591434,0.767813,
+_MG_4756,True,-0.3693490804413268,0.007449370293772499,0.03484799242185833,0.023100209844623108,-0.00012906836755299803,-0.999733146217775,5755,0.23279530773859217,0.767913,
+_MG_4757,True,0.4291794003894634,0.05302955189589229,-0.17530879053922385,0.012057809087959831,-0.0008442624234383797,-0.999926945562004,5122,0.24298078223719746,0.793152,
+_MG_4758,True,1.2387585688967149,0.07355645628482851,-0.21816847568060166,-0.000912589001430603,-0.0017066972798715214,-0.9999981271811009,3799,0.2773348895853115,0.773628,
+_MG_4767,False,,,,,,,0,,0.809472,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4768,False,,,,,,,0,,0.647507,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4774,False,,,,,,,0,,0.814487,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4781,False,,,,,,,0,,0.34888,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4783,False,,,,,,,0,,0.798302,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4787,False,,,,,,,0,,0.724424,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4792,False,,,,,,,0,,0.729173,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4794,False,,,,,,,0,,0.738829,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4800,False,,,,,,,0,,0.68797,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4805,False,,,,,,,0,,0.746742,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4806,False,,,,,,,0,,0.821121,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4809,False,,,,,,,1,,0.507224,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4824,True,5.050027463070063,4.167874866063357,-4.4682038165557705,-0.3829622521752446,-0.5058945745240984,-0.7729234068625079,880,0.9016040760430502,0.559437,
+_MG_4829,False,,,,,,,3,,0.463435,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4831,False,,,,,,,1,,0.588624,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4838,False,,,,,,,0,,0.737352,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4842,False,,,,,,,0,,0.702567,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4843,False,,,,,,,0,,0.706776,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4850,False,,,,,,,0,,0.808882,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4851,False,,,,,,,0,,0.671506,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4862,False,,,,,,,0,,0.562528,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4868,False,,,,,,,4,,0.689331,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4869,True,3.392914078373605,7.817629786073158,-14.757015571717833,-0.15055006323768014,-0.8422387322317332,0.5176568326486318,13,0.39685595928718653,0.756904,
+_MG_4875,True,5.039415807541453,6.63153354352533,-5.793764634757956,-0.33991952810008785,-0.7422795016888137,-0.5774736840660535,826,0.6486086105819724,0.736823,
+_MG_4886,False,,,,,,,0,,0.547431,pose: camera not aligned; reprojection_rmse_px: camera not aligned
+_MG_4891,False,,,,,,,0,,0.72556,pose: camera not aligned; reprojection_rmse_px: camera not aligned

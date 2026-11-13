@@ -1,0 +1,23 @@
+{
+  "metrics": {
+    "aligned_camera_count": 50,
+    "alignment_fraction": 1.0,
+    "camera_count": 50,
+    "dense_point_count": null,
+    "input_image_count": 50,
+    "mesh_face_count": null,
+    "mesh_vertex_count": null,
+    "reprojection_observation_count": 158141,
+    "reprojection_rmse_px": 0.47021773715801596,
+    "tie_point_count": 23386,
+    "valid_tie_point_count": 23386
+  },
+  "missing_reasons": {
+    "dense_point_count": "stage not built or API value unavailable",
+    "mesh_face_count": "stage not built or API value unavailable",
+    "mesh_vertex_count": "stage not built or API value unavailable"
+  },
+  "recorded_at": "2026-11-10T05:58:12.004716+00:00",
+  "runtime_seconds": 311.1390632080147,
+  "stage": "initial_alignment"
+}

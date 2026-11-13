@@ -1,0 +1,25 @@
+{
+  "evaluator_v3": {
+    "evaluator_version": 3,
+    "schema_version": "1.0",
+    "random_seed": 20260822,
+    "evaluation_sample_count": 100000,
+    "registration_sample_count": 20000,
+    "registration_method": "camera_similarity_initialization_then_similarity_point_to_point_icp",
+    "icp_max_iterations": 60,
+    "icp_relative_tolerance": 1e-07,
+    "icp_absolute_tolerance_fraction": 1e-12,
+    "icp_max_correspondence_distance_fraction": 0.05,
+    "threshold_fractions_of_reference_diagonal": [
+      0.0025,
+      0.005,
+      0.01,
+      0.02
+    ],
+    "scale_check_tolerance": 0.025,
+    "signature": "ce52f0ae78eec23f"
+  },
+  "reference_run": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/gpu-pilot-d8/ref50",
+  "reference_mesh_sha256": "5c4750e625e78fd73e2fadf3bc104fc607d2bad8f73486f0afd6e41a0f8e4ad7",
+  "reference_bounding_box_diagonal": 4.4843597358326415
+}

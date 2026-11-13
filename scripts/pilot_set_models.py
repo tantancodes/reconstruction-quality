@@ -45,6 +45,12 @@ H = 32
 MODELS = ('mean', 'reproj', 'ridge', 'pointnet', 'attention')
 
 
+def rel(path):
+    """Path as written to outputs: repo-relative when inside the repo."""
+    p = Path(path).resolve()
+    return str(p.relative_to(REPO)) if p.is_relative_to(REPO) else str(path)
+
+
 # ------------------------------------------------------------------ data
 
 def read_cameras(path):
@@ -237,7 +243,7 @@ def main():
     artifacts = sorted({r['artifact'] for r in runs})
     print(f'{len(runs)} runs: ' + ', '.join(f'{x} {sum(r["artifact"] == x for r in runs)}' for x in artifacts), flush=True)
     a.output.mkdir(parents=True, exist_ok=False)
-    write_csv(a.output / 'runs.csv', [{k: v for k, v in r.items() if k != 'X'} for r in runs])
+    write_csv(a.output / 'runs.csv', [{k: rel(v) if k == 'cameras' else v for k, v in r.items() if k != 'X'} for r in runs])
     preds, curves = evaluate(runs, 'LORO')
     if len(artifacts) >= 2:
         p2, _ = evaluate(runs, 'LOAO')
@@ -254,7 +260,7 @@ def main():
         'augmentation': 'fresh random rotation per run per epoch; test = mean over 8 random rotations',
         'learning_curves': 'training loss of the first LORO fold per (model, seed)',
         'label': 'v3 symmetric normalized RMSE vs each artifact/pipeline reference',
-        'coffin_labels': str(a.coffin_labels), 'seconds': round(time.time() - t0, 1)}, indent=2))
+        'coffin_labels': rel(a.coffin_labels), 'seconds': round(time.time() - t0, 1)}, indent=2))
     for r in summ:
         print(f"{r['scheme']:5s} {r['model']:9s} MAE {r['mae_mean']:.5f} ± {r['mae_std']:.5f}  "
               f"skill {r['skill_vs_mean']:+.2f} ± {r['skill_std']:.2f}", flush=True)

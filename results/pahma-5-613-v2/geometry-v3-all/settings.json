@@ -19,7 +19,7 @@
     "scale_check_tolerance": 0.025,
     "signature": "ce52f0ae78eec23f"
   },
-  "reference_run": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/ref145b",
+  "reference_run": "results/pahma-5-613-v2/ref145b",
   "reference_mesh_sha256": "18e976a00255a40410d49bea5fff36d441cce030c358ac09cfe8c0a9a7ad9822",
   "reference_bounding_box_diagonal": 8.716748052390926
 }

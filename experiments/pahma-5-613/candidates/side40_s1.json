@@ -790,7 +790,7 @@
     "rule": "series-1 cameras sorted by azimuth; 23 of 57 consecutive removed from sorted position 17 (azimuth 95.3..219.3 deg in reference pose frame)",
     "seed": null,
     "series_column": "series_pose",
-    "series_file": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/series_split/series.csv",
+    "series_file": "results/pahma-5-613-v2/series_split/series.csv",
     "strategy": "series1_contiguous_side_removed",
     "version": 1
   },

@@ -5,7 +5,7 @@ read_only, collect_camera_table, re-fingerprint both. No processing, no saving.
 
   PYTHONPATH=src $BD3D_METASHAPE_PYTHON -B \
       scripts/historical_reference_cameras.py \
-      --project ~/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_50_v1/ARF_Dog_FAST_DENSE_Geometry_50_v1.psx \
+      --project <BD3D_Test_Output>/ARF_Dog_FAST_DENSE_Geometry_50_v1/ARF_Dog_FAST_DENSE_Geometry_50_v1.psx \
       --output results/hist16-old-alignment/_reference
 """
 import argparse

@@ -19,6 +19,6 @@
   "augmentation": "fresh random rotation per run per epoch; test = mean over 8 random rotations",
   "learning_curves": "training loss of the first LORO fold per (model, seed)",
   "label": "v3 symmetric normalized RMSE vs each artifact/pipeline reference",
-  "coffin_labels": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/labels-all.csv",
+  "coffin_labels": "results/pahma-5-613-v2/labels-all.csv",
   "seconds": 248.4
 }

@@ -16,7 +16,7 @@ The watchdog's stdout/stderr go to <run>-watchdog.log, opened before launch.
 Outputs are never deleted. Limit overrides and their reasons are recorded by the watchdog.
 
   python3 scripts/run_watched.py --manifests experiments/pahma-5-613/ref145.json \
-      --root ~/Documents/bd3d-data/PAHMA-5-613 --output-dir results/pahma-5-613-v1 \
+      --root <bd3d-data>/PAHMA-5-613 --output-dir results/pahma-5-613-v1 \
       --seconds 4800 --seconds-note "..." --swap-growth-mib 6144 --rss-gib 6 --memory-note "..."
 """
 import argparse

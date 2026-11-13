@@ -25,7 +25,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PY = os.environ.get('BD3D_METASHAPE_PYTHON', 'python3')  # interpreter with the Metashape module
-ROOT = str(Path('~/Downloads/Jpg-processed').expanduser())
+ROOT = str(Path(os.environ.get('BD3D_DOG_PHOTOS', 'Jpg-processed')).expanduser())  # ARF dog photos
 MANIFESTS = REPO / 'experiments' / 'gpu-pilot-d8'
 OUT = REPO / 'results' / 'gpu-pilot-d8'
 ORDER = ['random10', 'side40', 'ref50']

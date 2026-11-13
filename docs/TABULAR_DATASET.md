@@ -27,7 +27,7 @@ rewritten. Reproduce into a fresh directory:
 ```bash
 .venv/bin/python -m bd3d_quality.tabular_dataset \
   --results results \
-  --historical-root <LOCAL>/Documents/BD3D_Test_Output \
+  --historical-root <BD3D_Test_Output> \
   --output results/pytorch-ready-archival-fresh
 .venv/bin/python -m pytest -q tests/test_tabular_dataset.py
 ```

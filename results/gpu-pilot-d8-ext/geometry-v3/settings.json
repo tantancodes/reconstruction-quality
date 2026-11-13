@@ -19,7 +19,7 @@
     "scale_check_tolerance": 0.025,
     "signature": "ce52f0ae78eec23f"
   },
-  "reference_run": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/gpu-pilot-d8/ref50",
+  "reference_run": "results/gpu-pilot-d8/ref50",
   "reference_mesh_sha256": "5c4750e625e78fd73e2fadf3bc104fc607d2bad8f73486f0afd6e41a0f8e4ad7",
   "reference_bounding_box_diagonal": 4.4843597358326415
 }

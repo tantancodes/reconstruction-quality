@@ -280,6 +280,12 @@ def plot(summary_rows, path):
     fig.savefig(path, dpi=150)
 
 
+def rel(path, repo):
+    """Path as written to config.json: repo-relative when inside the repo."""
+    p = Path(path).resolve()
+    return str(p.relative_to(repo)) if p.is_relative_to(repo) else str(path)
+
+
 def main():
     repo = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -332,7 +338,7 @@ def main():
         w.writeheader(); w.writerows(summ)
     plot(summ, args.out / "comparison.png")
     (args.out / "config.json").write_text(json.dumps(dict(
-        vars(args) | {"out": str(args.out), "runs": str(args.runs)},
+        vars(args) | {"out": rel(args.out, repo), "runs": rel(args.runs, repo)},
         nmax=NMAX, torch=torch.__version__, numpy=np.__version__, sklearn=sklearn.__version__,
         python=platform.python_version(), wall_seconds=round(time.time() - t0, 1)), indent=2))
 

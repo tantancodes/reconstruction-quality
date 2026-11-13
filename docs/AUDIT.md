@@ -7,7 +7,7 @@ empty, initialized on main with no commits, uncommitted files or remotes. No use
 previous agent implementation existed to preserve. No applicable AGENTS.md files
 were found in the new project or its ancestor directories.
 
-Aphoma `<LOCAL>/Documents/ChatGPT/bd3d/Aphoma` was clean on main, tracking
+Aphoma `<bd3d>/Aphoma` was clean on main, tracking
 origin/main; origin/bd3d-ml was inspected with read-only Git commands. Research
 branch commit: `d40904c32fe0f031cdbab980d87dfa024e55a7af`. Main contained the legacy
 GUI/task/Metashape processing pipeline; the research branch additionally contained
@@ -30,7 +30,7 @@ reviewed as historical research context, not accepted as tests of the new packag
 | `photogrammetry/MetashapeTools.py` and task modules | Coupled to configuration, GUI/tasks, scaling/orientation and cleanup. Not imported or copied into the new runner. |
 | Existing modeling scripts | Outside requested scope; neither copied nor executed. |
 
-The adjacent `<LOCAL>/Documents/ChatGPT/bd3d` research tree was read-only.
+The adjacent `<bd3d>` research tree was read-only.
 Inspected manifest and research documentation, historical report/table structures,
 and available interpreter. No original source, branch, project, image or historical
 result was modified. Existing environments were not installed into or altered;
@@ -46,7 +46,7 @@ baseline input selection and 51-image directory are distinguishable and verified
 this does not prove historical 51-camera reconstruction provenance.
 
 Historical projects were located through report paths at
-`<LOCAL>/Documents/BD3D_Test_Output`. Read-only ZIP/XML inspection of 39
+`<BD3D_Test_Output>`. Read-only ZIP/XML inspection of 39
 project chunks found camera counts: 0 (6 chunks), 25 (4), 30 (8), 35 (4), 40 (4),
 45 (1), and 50 (12). The four inspected Test/Instrumented/FullReference project
 chunks each declare 50 cameras. No 38- or 51-camera chunk was found in this set.

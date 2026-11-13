@@ -12,7 +12,7 @@ cpu_only=false (Metal GPU), so they differ only in image selection.
   ref50      all 50 images
 
   PYTHONPATH=src python3 scripts/make_gpu_pilot_manifests.py \
-      --parent results/arf-dog-50-manifest.json --root ~/Downloads/Jpg-processed \
+      --parent results/arf-dog-50-manifest.json --root <dog-photos> \
       --output experiments/gpu-pilot-d8
 """
 import argparse

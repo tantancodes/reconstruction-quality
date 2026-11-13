@@ -1,31 +1,31 @@
 [2026-11-10 02:59:58] waiting for ref145b driver pid 8261
 [2026-11-10 03:50:29] ref145b_status: {'run': 'ref145b', 'watchdog_exit_code': 0, 'metashape_status': 'complete', 'resources_recorded': True, 'watchdog_status': 'complete', 'stop_reason': None, 'elapsed_seconds': 3448.4, 'failures': None, 'image_quality_source': {'method': 'analyzeImages'}}
 [2026-11-10 03:50:29] ref145b_complete: True
-[2026-11-10 03:50:29] step p1_cache: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/build_image_quality_cache.py /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/ref145b --output /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/image_quality_cache.csv
+[2026-11-10 03:50:29] step p1_cache: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/build_image_quality_cache.py results/pahma-5-613-v2/ref145b --output results/pahma-5-613-v2/image_quality_cache.csv
 [2026-11-10 03:50:29] step p1_cache: exit 0 (0s)
-[2026-11-10 03:50:29] step p1_series_split: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/series_split_from_poses.py --cameras /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/ref145b/cameras.csv --images /Users/tristan/Documents/bd3d-data/PAHMA-5-613 --k 3 --output /Users/tristan/Documents/
+[2026-11-10 03:50:29] step p1_series_split: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/series_split_from_poses.py --cameras results/pahma-5-613-v2/ref145b/cameras.csv --images <bd3d-data>/PAHMA-5-613 --k 3 --output <LOCAL>/Documents/
 [2026-11-10 03:50:29] step p1_series_split: exit 0 (0s)
 [2026-11-10 03:50:29] series_split: {'pose_vs_capture_time_agree': '63/145', 'pose_series_sizes': {'1': 57, '2': 38, '3': 50}, 'used': 'series_pose'}
-[2026-11-10 03:50:29] step p1_manifests: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/make_pahma_manifests.py --parent experiments/pahma-5-613/parent-145.json --root /Users/tristan/Documents/bd3d-data/PAHMA-5-613 --series /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/series_split/seri
+[2026-11-10 03:50:29] step p1_manifests: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/make_pahma_manifests.py --parent experiments/pahma-5-613/parent-145.json --root <bd3d-data>/PAHMA-5-613 --series results/pahma-5-613-v2/series_split/seri
 [2026-11-10 03:50:30] step p1_manifests: exit 0 (1s)
 [2026-11-10 03:50:30] p1_manifests: ['drop_s3', 'drop_s2', 'random30_s20261110', 'random30_s20261111', 'side40_s1', 'random60_s20261112']
-[2026-11-10 03:50:30] step p1_metashape: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/pahma-5-613/candidates/drop_s3.json /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/pahma-5-613/candidates/drop_s2.json 
+[2026-11-10 03:50:30] step p1_metashape: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests experiments/pahma-5-613/candidates/drop_s3.json experiments/pahma-5-613/candidates/drop_s2.json 
 [2026-11-10 04:51:19] step p1_metashape: exit 2 (3650s)
 [2026-11-10 04:51:19] part1: stopped
 [2026-11-10 04:51:19] p2_manifests: ['random15_s20261110', 'random15_s20261111', 'random20_s20261110', 'random20_s20261111', 'side25']
-[2026-11-10 04:51:19] step p2_metashape: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/gpu-pilot-d8-ext/random15_s20261110.json /Users/tristan/Documents/bd3d-reconstruction-quality/experiments/gpu-pilot-d8-ext/random15_s2026
+[2026-11-10 04:51:19] step p2_metashape: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/run_watched.py --manifests experiments/gpu-pilot-d8-ext/random15_s20261110.json experiments/gpu-pilot-d8-ext/random15_s2026
 [2026-11-10 05:22:34] step p2_metashape: exit 0 (1875s)
 [2026-11-10 05:22:34] part2: complete
-[2026-11-10 05:22:34] step p3_score_coffin: /Users/tristan/Documents/bd3d-reconstruction-quality/.venv/bin/python scripts/score_runs_v3.py --fork /Users/tristan/Documents/ChatGPT/bd3d --reference /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/ref145b --candidates /Users/tristan/Documents/bd3d-reconstruction-qualit
+[2026-11-10 05:22:34] step p3_score_coffin: .venv/bin/python scripts/score_runs_v3.py --fork <bd3d> --reference results/pahma-5-613-v2/ref145b --candidates <LOCAL>/Documents/bd3d-reconstruction-qualit
 [2026-11-10 05:22:39] step p3_score_coffin: exit 0 (5s)
-[2026-11-10 05:22:39] step p3_labels_coffin: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/combine_labels.py --artifact pahma-5-613 --scores /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/geometry-v3 --runs-dir /Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2 --ou
+[2026-11-10 05:22:39] step p3_labels_coffin: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/combine_labels.py --artifact pahma-5-613 --scores results/pahma-5-613-v2/geometry-v3 --runs-dir results/pahma-5-613-v2 --ou
 [2026-11-10 05:22:39] step p3_labels_coffin: exit 0 (0s)
-[2026-11-10 05:22:39] step p3_score_dog: /Users/tristan/Documents/bd3d-reconstruction-quality/.venv/bin/python scripts/score_runs_v3.py --fork /Users/tristan/Documents/ChatGPT/bd3d --reference /Users/tristan/Documents/bd3d-reconstruction-quality/results/gpu-pilot-d8/ref50 --candidates /Users/tristan/Documents/bd3d-reconstruction-quality/re
+[2026-11-10 05:22:39] step p3_score_dog: .venv/bin/python scripts/score_runs_v3.py --fork <bd3d> --reference results/gpu-pilot-d8/ref50 --candidates re
 [2026-11-10 05:22:52] step p3_score_dog: exit 0 (13s)
-[2026-11-10 05:22:52] step p3_labels_dog: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/combine_labels.py --artifact arf-dog --scores /Users/tristan/Documents/bd3d-reconstruction-quality/results/gpu-pilot-d8-ext/geometry-v3 --runs-dir /Users/tristan/Documents/bd3d-reconstruction-quality/results/gpu-pilot-d8 /Users/t
+[2026-11-10 05:22:52] step p3_labels_dog: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/combine_labels.py --artifact arf-dog --scores results/gpu-pilot-d8-ext/geometry-v3 --runs-dir results/gpu-pilot-d8 <LOCAL>
 [2026-11-10 05:22:52] step p3_labels_dog: exit 0 (0s)
 [2026-11-10 05:22:52] scored: {'coffin': ['drop_s3', 'drop_s2'], 'dog': ['random10', 'side40', 'random15_s20261110', 'random15_s20261111', 'random20_s20261110', 'random20_s20261111', 'side25']}
-[2026-11-10 05:22:52] step p4a_pilot_models: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/pilot_set_models.py --output /Users/tristan/Documents/bd3d-reconstruction-quality/results/pilot-real-v3
+[2026-11-10 05:22:52] step p4a_pilot_models: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/pilot_set_models.py --output results/pilot-real-v3
 [2026-11-10 05:26:07] step p4a_pilot_models: exit 0 (195s)
 [2026-11-10 05:26:07] step p4b_results_notebook: /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 scripts/build_results_notebook.py
 [2026-11-10 05:26:09] step p4b_results_notebook: exit 0 (2s)

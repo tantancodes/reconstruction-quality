@@ -8,7 +8,7 @@ configuration is identical and only image selection differs. Scored against resu
                                  removed from both 25-image rings. Same sector centre as side40
                                  (positions 7-16), so side25's gap lies inside side40's.
 
-  PYTHONPATH=src python3 scripts/make_dog_failure_manifests.py --root ~/Downloads/Jpg-processed \
+  PYTHONPATH=src python3 scripts/make_dog_failure_manifests.py --root <dog-photos> \
       --output experiments/gpu-pilot-d8-ext
 """
 import argparse

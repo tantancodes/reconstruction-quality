@@ -210,7 +210,7 @@
   },
   "reference": {
     "identifier": "ARF_Dog_FAST_DENSE_Geometry_50_v1",
-    "path": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_50_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_50_v1.obj",
+    "path": "<BD3D_Test_Output>/ARF_Dog_FAST_DENSE_Geometry_50_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_50_v1.obj",
     "sha256": "8da052d2cc4068b93dcc98b6ad9f25b160a1b62931bc3f620bf213a8e3b76cac",
     "vertex_count": 33570,
     "triangle_count": 67136,
@@ -218,7 +218,7 @@
   },
   "candidate": {
     "identifier": "ARF_Dog_FAST_DENSE_Geometry_30_v1",
-    "path": "/Users/tristan/Documents/BD3D_Test_Output/ARF_Dog_FAST_DENSE_Geometry_30_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_30_v1.obj",
+    "path": "<BD3D_Test_Output>/ARF_Dog_FAST_DENSE_Geometry_30_v1/analysis_geometry/ARF_Dog_FAST_DENSE_Geometry_30_v1.obj",
     "sha256": "0826cb733d1985cccf14e296dd9ddd1b1bca7fb88d16e78068f7bdd3a45a8d58",
     "vertex_count": 31278,
     "triangle_count": 62552

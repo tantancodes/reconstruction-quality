@@ -83,7 +83,7 @@ RMS with optimization recorded, not a recovered initial-alignment value.
 ## Additional local labels and stage distinctions
 
 The bounded local search inspected 38 canonical JSON reports under
-`<LOCAL>/Documents/BD3D_Test_Output/*/reports/` (166,717 bytes total).
+`<BD3D_Test_Output>/*/reports/` (166,717 bytes total).
 The summary CSV has the same 38 run UUIDs and creates no additional observations.
 The source dictionary explicitly says these sparse measurements follow error
 reduction. The RESULTS.md value 0.276673 px is a nine-run aggregate mean and is
@@ -180,7 +180,7 @@ directory. Local source paths must exist; private evidence is not committed.
 ```bash
 .venv/bin/python examples/recover_historical_alignment.py \
   results/historical-alignment-discovery-v1 results/historical-alignment-reviewed-v2 \
-  results <LOCAL>/Documents/BD3D_Test_Output \
+  results <BD3D_Test_Output> \
   results/historical-alignment-recovery-v1 results/historical-alignment-recovered-fresh
 .venv/bin/python -m pytest -q tests/test_project_metadata.py \
   tests/test_historical_recovery.py tests/test_historical_alignment.py \

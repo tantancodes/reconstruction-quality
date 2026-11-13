@@ -84,9 +84,9 @@ installing into it or writing bytecode in the old repository:
 
 ```bash
 PYTHONPATH=<LOCAL>/Documents/bd3d-reconstruction-quality/src \
-<LOCAL>/Documents/ChatGPT/bd3d/venv312/bin/python -B -m bd3d_quality.cli \
+<bd3d>/venv312/bin/python -B -m bd3d_quality.cli \
 reconstruct results/arf-dog-50-manifest.json \
---root <LOCAL>/Downloads/Jpg-processed --output results/my-fresh-real-run
+--root <dog-photos> --output results/my-fresh-real-run
 ```
 
 The real manifest is intentionally ignored by Git. On another machine, obtain the

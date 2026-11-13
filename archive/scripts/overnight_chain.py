@@ -24,9 +24,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 VENV = str(REPO / '.venv/bin/python')
-FORK = Path('~/Documents/ChatGPT/bd3d').expanduser()
-COFFIN_ROOT = Path('~/Documents/bd3d-data/PAHMA-5-613').expanduser()
-DOG_ROOT = Path('~/Downloads/Jpg-processed').expanduser()
+# Local inputs, from the environment (see .env.example)
+FORK = Path(os.environ.get('BD3D_FORK', 'bd3d')).expanduser()
+COFFIN_ROOT = Path(os.environ.get('BD3D_COFFIN_PHOTOS', 'PAHMA-5-613')).expanduser()
+DOG_ROOT = Path(os.environ.get('BD3D_DOG_PHOTOS', 'Jpg-processed')).expanduser()
 V2 = REPO / 'results/pahma-5-613-v2'
 REF = V2 / 'ref145b'
 DOG_REF = REPO / 'results/gpu-pilot-d8/ref50'

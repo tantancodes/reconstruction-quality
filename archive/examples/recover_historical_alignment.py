@@ -1,6 +1,7 @@
 """Offline recovery from saved small metadata/caches. No network or Metashape API."""
 from pathlib import Path
 import csv
+import os
 import sys
 
 from bd3d_legacy.historical_alignment import build_dataset, require
@@ -110,7 +111,7 @@ def recover(discovery, prior_dataset, results, legacy_root, evidence, output):
     for filename, conclusion in [
         ('DATA_DICTIONARY.md','Early-SfM residuals are measured after error reduction; they are not initial-alignment labels.'),
         ('RESULTS.md','0.276673 pixel reprojection RMSE is an aggregate repeatability mean, not an additional run-specific observation.')]:
-        path = legacy_root.parent/'ChatGPT/bd3d/docs'/filename
+        path = Path(os.environ['BD3D_FORK'])/'docs'/filename  # the Aphoma bd3d fork
         require(path.stat().st_size < 100_000, 'documentation exceeds metadata budget')
         document_notes.append({'path':str(path),'sha256':sha256_file(path),'conclusion':conclusion})
     build_dataset(records, output, inventory_scope=scope)

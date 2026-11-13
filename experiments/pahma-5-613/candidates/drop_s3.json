@@ -602,7 +602,7 @@
     "parent_image_list_signature": "4be4d719b126d131824756db40faa951ad6deb22490d175bb4776f1a1861d930",
     "seed": null,
     "series_column": "series_pose",
-    "series_file": "/Users/tristan/Documents/bd3d-reconstruction-quality/results/pahma-5-613-v2/series_split/series.csv",
+    "series_file": "results/pahma-5-613-v2/series_split/series.csv",
     "strategy": "drop_series_3",
     "version": 1
   },

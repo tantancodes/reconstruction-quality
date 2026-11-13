@@ -12,7 +12,7 @@ photos (a pause after the first or last photo is a test shot, not a series bound
 Clusters are relabelled 1..k by increasing mean elevation.
 
   python3 scripts/series_split_from_poses.py --cameras results/pahma-5-613-v1/ref145/cameras.csv \
-      --images ~/Documents/bd3d-data/PAHMA-5-613 --k 3 --output results/pahma-5-613-v1/series_split
+      --images <bd3d-data>/PAHMA-5-613 --k 3 --output results/pahma-5-613-v1/series_split
 """
 import argparse
 import csv

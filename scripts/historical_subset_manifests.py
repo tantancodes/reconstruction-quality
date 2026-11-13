@@ -9,8 +9,8 @@ can be joined back to the geometric labels without guessing.
 
 No Metashape. Usage:
   PYTHONPATH=src python3 scripts/historical_subset_manifests.py \
-      --labels ~/Documents/ChatGPT/bd3d/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv \
-      --parent results/arf-dog-50-manifest.json --root ~/Downloads/Jpg-processed \
+      --labels <bd3d>/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv \
+      --parent results/arf-dog-50-manifest.json --root <dog-photos> \
       --output experiments/historical-fast-dense-16
 """
 import argparse

@@ -26,7 +26,7 @@ is still needed to re-run the original v1 evaluator. labels_v2.csv was not re-ge
 after this change.
 
   python archive/scripts/rescore_similarity_icp.py \
-      --fork ~/Documents/ChatGPT/bd3d \
+      --fork <bd3d> \
       --cameras results/hist16-old-alignment --output results/geometry-labels-v2
 """
 import argparse

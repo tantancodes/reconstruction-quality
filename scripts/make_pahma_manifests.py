@@ -13,7 +13,7 @@ circuit, 3 = near top-down. All candidates keep the parent's configuration
   random60_s<N>  60 random images (--random60-seed)
 
   PYTHONPATH=src python3 scripts/make_pahma_manifests.py \
-      --parent experiments/pahma-5-613/parent-145.json --root ~/Documents/bd3d-data/PAHMA-5-613 \
+      --parent experiments/pahma-5-613/parent-145.json --root <bd3d-data>/PAHMA-5-613 \
       --series results/pahma-5-613-v1/series_split/series.csv --column series_pose \
       --seeds 20261110 20261111 --output experiments/pahma-5-613/candidates
 """

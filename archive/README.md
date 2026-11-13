@@ -18,3 +18,8 @@ python -m pytest -q archive/tests           # conftest adds archive/src
 PYTHONPATH=archive/src python archive/examples/synthetic_workflow.py results/synthetic-demo
 PYTHONPATH=archive/src python -m bd3d_legacy.cli --help
 ```
+
+The documents in `docs/` describe the earlier layout. Their `bd3d-quality <subcommand>`
+commands for the archived subcommands are now `PYTHONPATH=archive/src python -m bd3d_legacy.cli <subcommand>`,
+and their `examples/` scripts are in `archive/examples/`. The local result folders they
+mention were moved out of the repository.

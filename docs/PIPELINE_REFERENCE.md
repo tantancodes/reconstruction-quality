@@ -5,31 +5,23 @@ Operational reference for the `bd3d-quality` package (moved here from the projec
 
 ## Setup on macOS
 
-From this repository, using Python 3.11 or later (development tested on 3.14.7):
+From this repository, with Python 3.14.7 (the version that produced the results):
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[local,test]'
+python -m pip install -e '.[test,ml,local]' -c requirements-lock.txt
 python -m pytest -q
 bd3d-quality --help
-python examples/synthetic_workflow.py results/my-demo
 ```
 
-`numpy`, `Pillow`, and `scipy` are the core dependencies. CPU OpenCV is optional
-(`local` extra) for ORB descriptors; pytest is a development extra. No Open3D is
-required: Aphoma's research-branch geometry implementation already used NumPy and
-SciPy, allowing deterministic mesh sampling without Open3D's larger dependencies.
-`requirements-lock.txt` records the actual Python 3.14 development environment:
-
-```bash
-python -m pip install -r requirements-lock.txt
-python -m pip install --no-deps -e .
-```
-
-This freeze is platform/interpreter-specific, not a cross-platform lock. For another
-interpreter use the version ranges in `pyproject.toml` and record a fresh freeze.
-Metashape is separately installed and licensed. Do not rename wheels to bypass
+`numpy`, `Pillow`, and `scipy` are the core dependencies; the `ml` extra adds torch,
+scikit-learn, pandas, matplotlib, TensorBoard and the notebook tools used by the models and
+figures; `local` adds CPU OpenCV (only for the archived image-feature code); `test` adds
+pytest. `requirements-lock.txt` is a full freeze of that environment, so tests, models and
+figures all run with the same versions. It is interpreter-specific, not a cross-platform
+lock: for another interpreter use the version ranges in `pyproject.toml` and record a fresh
+freeze. Metashape is separately installed and licensed. Do not rename wheels to bypass
 Python compatibility checks. See [Metashape setup](METASHAPE.md).
 
 ## Workflow
@@ -45,10 +37,6 @@ bd3d-quality manifest create --root /path/to/photos --dataset-id object-001 \
 bd3d-quality manifest inspect experiments/object-001.json
 bd3d-quality manifest validate experiments/object-001.json --root /path/to/photos \
   --output results/validation.json
-bd3d-quality features extract experiments/object-001.json --root /path/to/photos \
-  --output results/image-features.json
-bd3d-quality features match experiments/object-001.json --root /path/to/photos \
-  --output results/pair-matches.json
 bd3d-quality reconstruct experiments/object-001.json --root /path/to/photos \
   --output results/run-001
 ```
@@ -71,65 +59,41 @@ each execution has a separate UUID run ID. Edit settings by creating a new manif
 not by reusing a project. The source manifest stays immutable; `run.json` records
 execution status, timestamps, settings, software, stage measurements and artifacts.
 
-### Geometry
+### Geometry labels (evaluator v3)
 
 ```bash
-bd3d-quality geometry compare results/run-001/raw-mesh.obj /path/to/reference.obj \
-  --reference-id scanner-or-baseline-ID --units mm --sample-count 10000 \
-  --output results/geometry.json
+python scripts/score_runs_v3.py --reference results/run-ref --candidates results/run-001 \
+  --output results/geometry-v3
+python scripts/combine_labels.py --artifact object-001 --scores results/geometry-v3 \
+  --runs-dir results --output results/labels.csv
 ```
 
-OBJ geometry only, including negative indices and fan triangulation. Use triangulated
-meshes; concave polygons may not be faithfully fan-triangulated. Input geometry is
-never edited. Specify shared units explicitly: reconstruction coordinates are not
-millimeters without an independent scale calibration. The runner does not establish
-physical scale or detect scale bars. Registering arbitrary-scale reconstructions
-against physical scanner data without prior calibration will fail or mislead.
+Each run directory needs `raw-mesh.obj`, `cameras.csv` and `run.json` from `reconstruct`.
+The candidate mesh is registered to the reference by the similarity transform that maps
+its aligned cameras onto the reference cameras over shared images, refined by
+point-to-point ICP with uniform scale, and scored by the symmetric RMSE between surface
+samples divided by the reference bounding-box diagonal (`src/bd3d_quality/evaluation.py`).
+Runs whose ICP and camera scales differ by more than 2.5% are flagged. OBJ geometry only,
+including negative indices and fan triangulation; input geometry is never edited. Labels
+are **reference agreement**, not physical accuracy: a reference reconstruction shares its
+own errors. See [methodology](METHODOLOGY.md).
 
-Rigid centroid-initialized point-to-point ICP records the transformation, fitness,
-inlier RMSE, correspondence count, settings, sample seed and hashes. It never
-rescales geometry. Major RMS-radius disagreement, failed registration, or reaching
-the iteration limit invalidates the comparison and suppresses distance metrics.
-Outputs include both directional nearest-sample statistics, symmetric squared
-Chamfer-style distance, and thresholded candidate coverage/reference completeness.
-These are **reference agreement**, not automatically physical accuracy. A reference
-reconstruction shares its own errors. See [methodology](METHODOLOGY.md).
-
-### Reports
-
-```bash
-bd3d-quality report summarize experiments/object-001.json \
-  --features results/image-features.json --matches results/pair-matches.json \
-  --run results/run-001/run.json --geometry results/geometry.json \
-  --output results/summary-001.json
-bd3d-quality report build results/summary-001.json --output results/table-001
-```
-
-All summary attachments are optional. Geometry can be attached only when the
-candidate hash matches a raw OBJ recorded in the selected run. Standalone geometry
-fixtures remain separate from experiment summaries. Summaries embed all supplied
-records and source file hashes; every reported stage metric remains traceable.
-The output directory contains `experiments.csv`, `experiments.json`,
-`validation.json` (including status counts) and `feature_dictionary.json`.
-
-One row = one input/configuration condition with one explicitly selected run.
-Duplicate conditions are rejected, including repeat executions; select one run per
-condition deliberately. Preserve repeated runs separately for repeatability analysis.
-Different effective configurations, feature settings, recorded software signatures,
-references or geometry units are rejected from a single table. Build separate tables
-for incompatible strata. Missing attachments remain missing; JSON null and CSV
-empty cells never mean zero. Stage names prefix metric columns with `__`.
+The earlier rigid `geometry compare` evaluator, the image `features` commands and the
+`report` tables are archived with the rest of the earlier-phase CLI in
+`archive/src/bd3d_legacy/cli.py` (see `archive/README.md`).
 
 ## Architecture
 
-- `manifests.py`, `config.py`, `provenance.py`, `validation.py`: identity, image verification, typed settings, atomic output.
-- `image_features.py`, `local_match_features.py`: measurable image and pair descriptors.
-- `metashape_runner.py`, `reconstruction_metrics.py`: isolated licensed API, fresh projects, verified checkpoints, stage snapshots, raw exports.
-- `geometry_quality.py`: deterministic area-weighted sampling, rigid ICP and validity checks.
-- `reporting.py`, `cli.py`: explicit record joins, portable reports and commands.
-- `tests/`: provenance, corruption, reconstruction mocks, geometry, features, reporting, CLI and synthetic smoke coverage.
-- `config/`, `examples/`: fully specified profiles and redistributable synthetic workflow.
-- `experiments/`, `results/`: ignored local research records and artifacts.
+- `manifests.py`, `config.py`, `provenance.py`: identity, image verification, typed settings, atomic output.
+- `experiment_design.py`: deterministic image subsets with overlap/dependence metadata.
+- `metashape_runner.py`, `reconstruction_metrics.py`: isolated licensed API, fresh projects, verified checkpoints, stage snapshots, raw exports, `cameras.csv`.
+- `resource_monitor.py`: the watchdog that runs each reconstruction.
+- `evaluation.py`: geometry evaluator v3 (mesh loading, sampling, registration, labels).
+- `cli.py`: the `manifest` and `reconstruct` commands.
+- `scripts/`: manifests, driver, scoring, models and figures ([index](../scripts/README.md)).
+- `tests/`: provenance, corruption, reconstruction mocks, watchdog, driver, v3 scorer and label tables.
+- `config/`: fully specified reconstruction profiles.
+- `archive/`: earlier-phase package (`bd3d_legacy`), its tests, examples and documents.
 
 ## Safeguards and limitations
 
@@ -152,11 +116,11 @@ still vary across hardware or repeated runs; identity does not imply determinist
 numerical reconstruction.
 
 Read [audit](AUDIT.md), [validation record](VALIDATION.md),
-[feature definitions](FEATURE_DICTIONARY.md), [attribution](ATTRIBUTION.md),
+[feature definitions](../archive/docs/FEATURE_DICTIONARY.md), [attribution](ATTRIBUTION.md),
 and [future statistical/ML work](../FUTURE_ML.md). Optional plots and mesh
 postprocessing are deliberately outside the initial implementation. Never commit
 private photos, archaeological geometry, credentials, environments or generated
-research results. Publication instructions are in [GitHub setup](PUBLISHING.md).
+research results. Publication instructions are in [GitHub setup](../archive/docs/PUBLISHING.md).
 
 ## Resource-safe reconstruction and controlled pilot
 
@@ -177,15 +141,15 @@ project and artifact hashes, then copies its project into a new output directory
 Changing raster resolution requires an independently aligned derivative condition;
 it is never treated as the original checkpoint's condition.
 
-`examples/prepare_low_resolution.py` creates lossless, EXIF-oriented derivatives
+`archive/examples/prepare_low_resolution.py` creates lossless, EXIF-oriented derivatives
 and a source-hash/derivation ledger. `experiment_design.py` defines deterministic
-subsets with explicit overlap/dependence metadata. `examples/run_bounded_pilot.py`
+subsets with explicit overlap/dependence metadata. `archive/examples/run_bounded_pilot.py`
 requires a successful monitored baseline, records a measured-cost budget before
 execution, and runs at most three conditions sequentially. Geometry export checks
-use `examples/validate_exports.py` in an interpreter with Open3D installed; Open3D
-is not a core package dependency and no ML extras are needed.
+use `archive/examples/validate_exports.py` in an interpreter with Open3D installed; Open3D
+is not a package dependency. The current pipeline driver is `scripts/run_watched.py`.
 
-See [controlled experiment protocol](CONTROLLED_EXPERIMENTS.md) for settings,
+See [controlled experiment protocol](../archive/docs/CONTROLLED_EXPERIMENTS.md) for settings,
 selection strategies, cancellation rules, pre-execution budgets and scientific
 limitations. The original 38-image historical subset remains unresolved; newly
 sampled 38-image conditions are explicitly distinct.

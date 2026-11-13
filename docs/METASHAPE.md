@@ -40,5 +40,5 @@ support describes that convention in its [decimation guidance](https://www.agiso
 The installed 2.2.1 method docstrings were inspected for downscale, max_neighbors,
 work-item and work-group controls. The CPU worker count could not be enforced by
 OpenMP variables alone, so the watchdog records that request and independently
-limits process run duty cycle. See CONTROLLED_EXPERIMENTS.md and VALIDATION.md
+limits process run duty cycle. See [CONTROLLED_EXPERIMENTS.md](../archive/docs/CONTROLLED_EXPERIMENTS.md) and [VALIDATION.md](VALIDATION.md)
 for actual attempts and resource stops; these are not successful dense/mesh runs.

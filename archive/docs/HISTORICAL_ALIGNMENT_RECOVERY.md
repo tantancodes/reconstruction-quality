@@ -178,7 +178,7 @@ existing caches. It has no network access code and refuses an existing output
 directory. Local source paths must exist; private evidence is not committed.
 
 ```bash
-.venv/bin/python examples/recover_historical_alignment.py \
+.venv/bin/python archive/examples/recover_historical_alignment.py \
   results/historical-alignment-discovery-v1 results/historical-alignment-reviewed-v2 \
   results <BD3D_Test_Output> \
   results/historical-alignment-recovery-v1 results/historical-alignment-recovered-fresh

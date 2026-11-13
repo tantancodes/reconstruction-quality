@@ -81,6 +81,76 @@ flowchart LR
   stage timings and resource use. CLI and safeguard details are in
   [docs/PIPELINE_REFERENCE.md](docs/PIPELINE_REFERENCE.md).
 
+## Pipeline at a glance
+
+The commands behind the coffin results, from photos to figures. The dog runs use the same
+steps with the manifests in `experiments/gpu-pilot-d8*/`. Steps 1–4 need Metashape and the
+photos; step 5 needs the local run folders; steps 6–7 run from files in git.
+`<photos>` is the folder of the full capture.
+
+1. **Manifest of the full capture.** In: photos. Out: a manifest listing every image with its
+   SHA-256, the reconstruction settings and an experiment ID.
+   ```bash
+   bd3d-quality manifest create --root <photos> --dataset-id pahma-5-613-processed-145 \
+       --config experiments/pahma-5-613/config.json --output experiments/pahma-5-613/parent-145.json
+   ```
+2. **Reference reconstruction**, under the resource watchdog. `ref145b.json` is a copy of
+   `parent-145.json`; the driver names each run folder after its manifest file, and the earlier
+   `ref145` attempts were stopped by license denials. In: manifest and photos. Out:
+   `results/pahma-5-613-v2/ref145b/` with `cameras.csv` (aligned camera positions and view
+   directions), `raw-mesh.obj`, `run.json` and stage metrics, plus watchdog records.
+   ```bash
+   python scripts/run_watched.py --manifests experiments/pahma-5-613/ref145b.json --root <photos> \
+       --output-dir results/pahma-5-613-v2 --seconds 7200 --swap-growth-mib 6144 --rss-gib 6
+   ```
+3. **Image-quality cache and capture series.** In: the reference run. Out:
+   `image_quality_cache.csv` (reused by the subsets) and `series_split/series.csv`; then the
+   candidate manifests in `experiments/pahma-5-613/candidates/` (series removals, a contiguous
+   side, random subsets).
+   ```bash
+   python scripts/build_image_quality_cache.py results/pahma-5-613-v2/ref145b \
+       --output results/pahma-5-613-v2/image_quality_cache.csv
+   python scripts/series_split_from_poses.py --cameras results/pahma-5-613-v2/ref145b/cameras.csv \
+       --images <photos> --k 3 --output results/pahma-5-613-v2/series_split
+   python scripts/make_pahma_manifests.py --parent experiments/pahma-5-613/parent-145.json --root <photos> \
+       --series results/pahma-5-613-v2/series_split/series.csv --seeds 20261110 20261111 \
+       --output experiments/pahma-5-613/candidates
+   ```
+4. **Candidate reconstructions.** In: candidate manifests, photos, cache. Out: one run folder
+   per candidate in `results/pahma-5-613-v2/`; an alignment failure is recorded in
+   `<run>-pilot-status.json` and the driver moves on.
+   ```bash
+   python scripts/run_watched.py --manifests experiments/pahma-5-613/candidates/*.json --root <photos> \
+       --output-dir results/pahma-5-613-v2 --image-quality-cache results/pahma-5-613-v2/image_quality_cache.csv
+   ```
+5. **Labels (evaluator v3).** In: the run folders (`raw-mesh.obj`, `cameras.csv`, `run.json`).
+   Out: `geometry-v3-all/labels_v3.csv` (one row per run: label, QC, scale check, distances)
+   and `labels-all.csv` (adds the missing/extra-surface breakdown and run context). The
+   historical dog labels come from `rescore_camera_init_icp.py` (see its docstring).
+   ```bash
+   python scripts/score_runs_v3.py --reference results/pahma-5-613-v2/ref145b \
+       --candidates results/pahma-5-613-v2/{drop_s3,drop_s2,random30_s20261111,side40_s1,random60_s20261112} \
+       --output results/pahma-5-613-v2/geometry-v3-all
+   python scripts/combine_labels.py --artifact pahma-5-613 --scores results/pahma-5-613-v2/geometry-v3-all \
+       --runs-dir results/pahma-5-613-v2 --output results/pahma-5-613-v2/labels-all.csv
+   ```
+6. **Models.** In: label CSVs and each run's `cameras.csv` (all in git); the synthetic
+   benchmark needs no input. Out: `results/synthetic-coverage-gap/` (and TensorBoard logs in
+   `runs/synthetic/`) and `results/pilot-real-v3-all/` (`summary.csv`, `predictions.csv`,
+   `runs.csv`, learning curves).
+   ```bash
+   python scripts/synthetic_coverage_gap.py
+   python scripts/pilot_set_models.py --output results/pilot-real-v3-all \
+       --coffin-labels results/pahma-5-613-v2/labels-all.csv
+   ```
+7. **Figures and notebook.** In: `results/` files in git. Out: `docs/figures/*.png`,
+   `docs/figures/data/stats.json` (every derived number cited here) and `notebooks/results.ipynb`.
+   ```bash
+   python scripts/make_figures.py
+   python scripts/build_results_notebook.py --pilot results/pilot-real-v3-all \
+       --coffin-labels results/pahma-5-613-v2/labels-all.csv
+   ```
+
 ## Findings
 
 ### a. Evaluation audit: the first labels measured registration failure, not geometry
@@ -295,9 +365,13 @@ Source: `results/pilot-real-v3-all/summary.csv`. Skill = 1 − MAE / MAE of the 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[test,ml]'
-python -m pytest -q
+python -m pip install -e '.[test,ml,local]' -c requirements-lock.txt
+python -m pytest -q                  # core tests
+python -m pytest -q archive/tests    # tests of the archived earlier-phase code
 ```
+
+`requirements-lock.txt` pins the exact versions that produced the results and figures. The
+same environment runs the tests, the models and the figures.
 
 Metashape is only needed to produce new reconstructions. It is licensed separately. Point
 `BD3D_METASHAPE_PYTHON` at an interpreter that can `import Metashape` (see `.env.example`
@@ -310,9 +384,9 @@ this repository.
 |---|---|---|
 | all figures in `docs/figures/`, plus `docs/figures/data/stats.json` | `python scripts/make_figures.py` | `results/` CSVs in git. Camera layouts and learning curves use local run folders and `runs/synthetic` when present, otherwise the cached tables in `docs/figures/data/` |
 | synthetic benchmark table, TensorBoard logs | `python scripts/synthetic_coverage_gap.py` | none (about 12 min on 4 CPU threads) |
-| pilot table | `python scripts/pilot_set_models.py --output results/pilot-real-v3-all --coffin-labels results/pahma-5-613-v2/labels-all.csv` | label files and local `cameras.csv` of each run |
-| evaluation audit labels | `python scripts/rescore_camera_init_icp.py` (see its docstring) | historical meshes and camera tables (local) |
-| real-data label tables | `python scripts/score_runs_v3.py ...` then `python scripts/combine_labels.py ...` | local run folders (`raw-mesh.obj`, `cameras.csv`) |
+| pilot table | `python scripts/pilot_set_models.py --output results/pilot-real-v3-all --coffin-labels results/pahma-5-613-v2/labels-all.csv` | label files and the `cameras.csv` of each run, all in git |
+| evaluation audit labels | `python scripts/rescore_camera_init_icp.py --historical <dir> ...` (see its docstring) | the historical label CSV, reports and meshes (local), camera tables in git |
+| real-data label tables | `python scripts/score_runs_v3.py ...` then `python scripts/combine_labels.py ...` (see Pipeline at a glance) | local run folders (`raw-mesh.obj`, `cameras.csv`, `run.json`); no other repository |
 | bd3d-ml recheck | `python scripts/recheck_bd3d_ml_claims.py --dataset <bd3d>/analysis_outputs/fast_dense_geometry_dataset_v1/fast_dense_geometry_modeling_dataset_v1.csv --output results/bd3d-ml-claims-recheck` | the Aphoma modeling table (local) |
 | results notebook | `python scripts/build_results_notebook.py` | as for the figures |
 
@@ -342,9 +416,10 @@ curves, the label tables and the pilot comparison. Rebuild it with
 
 | path | contents |
 |---|---|
-| `src/bd3d_quality/` | package: manifests and provenance, Metashape runner, resource watchdog, geometry evaluation, reporting, CLI |
+| `src/bd3d_quality/` | package: manifests and provenance, Metashape runner, resource watchdog, geometry evaluator (`evaluation.py`), CLI |
 | `scripts/` | experiment, evaluation, model and figure scripts ([index](scripts/README.md)) |
-| `tests/` | unit tests (Metashape is mocked) |
+| `tests/` | unit and regression tests (Metashape is mocked; `pytest -m local` re-scores the real runs) |
+| `archive/` | earlier-phase package, tests, examples, documents and superseded scripts ([index](archive/README.md)) |
 | `results/` | saved labels, summaries and run records cited above (raw run folders are local-only) |
 | `docs/figures/` | README figures and the derived tables behind them |
 | `docs/` | [pipeline reference](docs/PIPELINE_REFERENCE.md), [methodology](docs/METHODOLOGY.md), [Metashape setup](docs/METASHAPE.md), [audit](docs/AUDIT.md), [attribution](docs/ATTRIBUTION.md), [status history](docs/STATUS_HISTORY.md) |

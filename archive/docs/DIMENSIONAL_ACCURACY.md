@@ -45,7 +45,7 @@ not invented. See [NIST uncertainty guidance](https://www.nist.gov/pml/nist-tech
 
 `dimensional_accuracy.evaluate_dimensions(bundle, minimum_checks=2,
 require_uncertainty=True)` consumes the structure illustrated in
-`examples/ground_truth/synthetic-box-dimensions.json`. Its top-level fields are
+`archive/examples/ground_truth/synthetic-box-dimensions.json`. Its top-level fields are
 `schema_version=1`, `kind=dimensional_evaluation_input`, `data_origin`, object/session/
 subset/run IDs, `ground_truth` and `reconstruction`. The ground-truth container has
 an independent-physical-reference ID and physical measurement list. Each
@@ -67,9 +67,9 @@ reported; partial numeric errors remain diagnostics. The default two-check minim
 is an operational gate, not proof of adequate object coverage or statistical power.
 
 ```bash
-bd3d-quality dimensions evaluate examples/ground_truth/synthetic-box-dimensions.json \
+bd3d-quality dimensions evaluate archive/examples/ground_truth/synthetic-box-dimensions.json \
   --output results/synthetic-dimensional-fresh.json
-bd3d-quality measured-dataset examples/ground_truth/synthetic-measured-experiment.json \
+bd3d-quality measured-dataset archive/examples/ground_truth/synthetic-measured-experiment.json \
   --allow-synthetic --output results/synthetic-measured-fresh
 ```
 

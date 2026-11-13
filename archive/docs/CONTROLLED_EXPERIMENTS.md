@@ -85,6 +85,6 @@ checkpoint permitted continuation without changing that saved run. The continuat
 then hit the swap-growth gate. No additional reconstruction was launched. The
 bounded pilot is therefore **not executed**, and its budget projections remain
 provisional. The historical three-run audit/feature table is a separate archival
-stratum, not replacement pilot evidence. See VALIDATION.md for actual sampled
+stratum, not replacement pilot evidence. See docs/VALIDATION.md for actual sampled
 resource measurements, missing outputs, and the numerical registration sensitivity
 check. Newly generated raw dense-cloud/mesh export validation remains a prerequisite.

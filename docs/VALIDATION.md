@@ -71,19 +71,18 @@ repeat of the historical full-reference condition.
 ## Reproduction
 
 ```bash
-cd <LOCAL>/Documents/bd3d-reconstruction-quality
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[local,test]'
+python -m pip install -e '.[test,ml,local]' -c requirements-lock.txt
 python -m pytest -q
-python examples/synthetic_workflow.py results/my-fresh-demo
+PYTHONPATH=archive/src python archive/examples/synthetic_workflow.py results/my-fresh-demo
 ```
 
 The local real-data integration used the existing compatible interpreter without
 installing into it or writing bytecode in the old repository:
 
 ```bash
-PYTHONPATH=<LOCAL>/Documents/bd3d-reconstruction-quality/src \
+PYTHONPATH=src \
 <bd3d>/venv312/bin/python -B -m bd3d_quality.cli \
 reconstruct results/arf-dog-50-manifest.json \
 --root <dog-photos> --output results/my-fresh-real-run

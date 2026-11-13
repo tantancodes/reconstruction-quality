@@ -236,7 +236,7 @@ bounded feature export with hash provenance over moving all images to this lapto
 bd3d-quality alignment-report parse REPORT_TEXT.txt --output results/parsed-fresh.json
 bd3d-quality alignment-dataset build RECORD.json --output results/alignment-fresh
 # Rebuild the reviewed preparation from saved discovery/caches, into a new directory:
-.venv/bin/python examples/prepare_historical_alignment.py \
+.venv/bin/python archive/examples/prepare_historical_alignment.py \
   results/historical-alignment-discovery-v1 results results/alignment-reviewed-fresh
 .venv/bin/python -m pytest -q tests/test_historical_alignment.py tests/test_tabular_dataset.py
 ```

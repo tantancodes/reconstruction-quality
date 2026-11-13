@@ -131,7 +131,7 @@ values drive descriptive calculations; exported development arrays use float32.
 
 ```bash
 # Run only descriptive analysis; the output directory must not exist:
-PYTHONPATH=src python3 examples/analyze_exploratory_alignment.py \
+PYTHONPATH=src python3 archive/examples/analyze_exploratory_alignment.py \
   results/historical-alignment-recovered-v2 results/exploratory-arf-dog-fresh
 
 # Lightweight tests (no private datasets, baselines or training):
@@ -195,7 +195,7 @@ explicit before any later training; random row splitting would mix dependent dat
 
 ## Optional baseline script — prepared, not run
 
-`examples/evaluate_exploratory_baselines.py` is deliberately separate from EDA.
+`archive/examples/evaluate_exploratory_baselines.py` is deliberately separate from EDA.
 Its fitting path was **not executed** and has no performance results. Syntax was
 checked; fold-planning tests exercise metadata only, not a fitted model.
 

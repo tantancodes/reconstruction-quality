@@ -88,7 +88,7 @@ this phase.
 ## Current reproducible check
 
 ```bash
-.venv/bin/python examples/audit_alignment_provenance.py \
+.venv/bin/python archive/examples/audit_alignment_provenance.py \
   results/historical-alignment-recovered-v2/records.json \
   results/alignment-provenance-audit-fresh \
   --small-project results/historical-alignment-recovery-v1/small-project

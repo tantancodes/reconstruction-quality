@@ -1,65 +1,11 @@
 """Rigid reference agreement. Low-level sampling/ICP adapted from Aphoma (CC0).
 See docs/ATTRIBUTION.md. No geometry is modified on disk.
 """
-from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
+from .evaluation import TriangleMesh, apply_transform, load_obj_mesh, sample_surface  # noqa: F401
 from .provenance import digest, software_versions, sha256_file
-@dataclass(frozen=True)
-class TriangleMesh:
-    vertices: np.ndarray
-    triangles: np.ndarray
-
-
-def load_obj_mesh(path) -> TriangleMesh:
-    """Load OBJ geometry only; materials, normals, and textures are ignored."""
-    path = Path(path).expanduser().resolve()
-    vertices, triangles = [], []
-    with path.open("r", encoding="utf-8", errors="replace") as handle:
-        for line in handle:
-            if line.startswith("v "):
-                values = line.split()
-                vertices.append(tuple(float(value) for value in values[1:4]))
-            elif line.startswith("f "):
-                indices = [int(item.split("/")[0]) for item in line.split()[1:]]
-                if 0 in indices:
-                    raise ValueError("OBJ indices cannot be zero")
-                resolved = [index - 1 if index > 0 else len(vertices) + index for index in indices]
-                for offset in range(1, len(resolved) - 1):
-                    triangles.append((resolved[0], resolved[offset], resolved[offset + 1]))
-    mesh = TriangleMesh(np.asarray(vertices, dtype=np.float64), np.asarray(triangles, dtype=np.int64))
-    if not np.isfinite(mesh.vertices).all():
-        raise ValueError("nonfinite mesh coordinates")
-    if len(mesh.vertices) == 0 or len(mesh.triangles) == 0:
-        raise ValueError(f"OBJ has no usable triangle mesh: {path}")
-    if mesh.triangles.min() < 0 or mesh.triangles.max() >= len(mesh.vertices):
-        raise ValueError(f"OBJ contains an invalid face index: {path}")
-    return mesh
-
-
-def sample_surface(mesh: TriangleMesh, count: int, seed: int) -> np.ndarray:
-    """Sample triangle surfaces in proportion to area, deterministically."""
-    triangle_vertices = mesh.vertices[mesh.triangles]
-    cross = np.cross(
-        triangle_vertices[:, 1] - triangle_vertices[:, 0],
-        triangle_vertices[:, 2] - triangle_vertices[:, 0],
-    )
-    areas = np.linalg.norm(cross, axis=1) * 0.5
-    usable = areas > np.finfo(float).eps
-    if not np.any(usable):
-        raise ValueError("mesh has no nondegenerate triangles")
-    triangle_vertices, areas = triangle_vertices[usable], areas[usable]
-    rng = np.random.default_rng(seed)
-    choices = rng.choice(len(areas), size=count, p=areas / areas.sum())
-    chosen = triangle_vertices[choices]
-    first = np.sqrt(rng.random(count))
-    second = rng.random(count)
-    return (
-        (1 - first)[:, None] * chosen[:, 0]
-        + (first * (1 - second))[:, None] * chosen[:, 1]
-        + (first * second)[:, None] * chosen[:, 2]
-    )
 
 
 def _rigid_transform(source: np.ndarray, target: np.ndarray):
@@ -75,10 +21,6 @@ def _rigid_transform(source: np.ndarray, target: np.ndarray):
         rotation = right.T @ left.T
     translation = target_center - np.einsum("ij,j->i", rotation, source_center)
     return rotation, translation
-
-
-def apply_transform(points: np.ndarray, transform: np.ndarray) -> np.ndarray:
-    return np.einsum("ni,ji->nj", points, transform[:3, :3]) + transform[:3, 3]
 
 
 def rigid_icp(

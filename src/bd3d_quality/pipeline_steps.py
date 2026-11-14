@@ -136,11 +136,30 @@ class CapturePaths:
         return self.output / f'{self.name}-mesh'
 
 
+RUN_FILES = ('', '-watchdog.log', '-console.log', '-resources.json', '-pilot-status.json')
+
+
+def run_name_taken(output, run_name):
+    """True when a run folder, any of its sibling logs, or its manifest already exists."""
+    output = Path(output)
+    return (any((output / f'{run_name}{s}').exists() for s in RUN_FILES)
+            or (output / 'manifests' / f'{run_name}.json').exists())
+
+
+def unused_run_name(output, base):
+    """base, or base-2, base-3, ... : the first run name with nothing on disk (outputs are never reused)."""
+    name, n = base, 1
+    while run_name_taken(output, name):
+        n += 1
+        name = f'{base}-{n}'
+    return name
+
+
 def capture_name(photos, output):
-    """Run name from the photo folder name, made unique within output (outputs are never reused)."""
+    """Capture name from the photo folder name such that neither <name>-align nor <name>-mesh is taken."""
     base = ''.join(c if c.isalnum() or c in '-_' else '-' for c in Path(photos).name) or 'capture'
     name, n = base, 1
-    while any((Path(output) / f'{name}{s}').exists() for s in ('-align', '-mesh', '-align-watchdog.log')):
+    while run_name_taken(output, f'{name}-align') or run_name_taken(output, f'{name}-mesh'):
         n += 1
         name = f'{base}-{n}'
     return name
@@ -204,13 +223,15 @@ def license_ok(python, timeout=120):
     return ok, 'activated' if ok else f'license unavailable (check VPN) | {detail}'
 
 
-def watched_command(python, manifest, photos, run_dir, limits, seed=None):
+def watched_command(python, manifest, photos, run_dir, limits, seed=None, image_quality_cache=None):
     """resource_monitor wrapping `bd3d_quality.cli reconstruct`, as in scripts/run_watched.py."""
     cmd = [python, '-B', '-m', 'bd3d_quality.resource_monitor', '--output', str(run_dir), *limits.args(),
            '--', python, '-B', '-m', 'bd3d_quality.cli', 'reconstruct', str(manifest),
            '--root', str(photos), '--output', str(run_dir)]
     if seed is not None:
         cmd += ['--seed-checkpoint', str(seed)]
+    if image_quality_cache is not None:
+        cmd += ['--image-quality-cache', str(Path(image_quality_cache).resolve())]
     return cmd
 
 
@@ -314,6 +335,61 @@ def is_alignment_checkpoint(run_dir):
     except (OSError, ValueError):
         return False
     return state.get('status') == 'complete' and [s['stage'] for s in state.get('stages', [])] == ['initial_alignment']
+
+
+# ---------------------------------------------------------------- image-quality cache
+
+CACHE_NAME = 'image_quality_cache.csv'
+
+
+def find_quality_cache(reference_dir):
+    """The reference run's image_quality_cache.csv, or one beside it (e.g. results/pahma-5-613-v2/)."""
+    if reference_dir is None:
+        return None
+    reference_dir = Path(reference_dir)
+    for p in (reference_dir / CACHE_NAME, reference_dir.parent / CACHE_NAME):
+        if p.is_file():
+            return p
+    return None
+
+
+def cache_coverage(cache_path, manifest):
+    """(usable, reason). Mirrors metashape_runner.apply_image_quality_cache, which fails the run unless
+    every image has a finite cached value (matched by SHA-256) from a single source run."""
+    import csv
+    import math
+    try:
+        with open(cache_path, newline='') as f:
+            rows = {r['sha256']: r for r in csv.DictReader(f)}
+    except (OSError, KeyError, csv.Error) as exc:
+        return False, f'cannot read cache: {exc}'
+    covered, sources = 0, set()
+    for e in manifest['images']:
+        r = rows.get(e['sha256'])
+        try:
+            ok = r is not None and math.isfinite(float(r['image_quality']))
+        except (TypeError, ValueError, KeyError):
+            ok = False
+        if ok:
+            covered += 1
+            sources.add((r.get('source_run_id'), r.get('source_experiment_id'), r.get('metashape_version')))
+    total = len(manifest['images'])
+    if covered < total:
+        return False, f'cache covers {covered} of {total} photos (matched by SHA-256)'
+    if len(sources) != 1:
+        return False, 'cache rows come from more than one source run'
+    return True, f'cache covers all {total} photos'
+
+
+def image_quality_source(run_dir):
+    """How the run got Image/Quality, from its run.json: 'cache …', 'analyzeImages' or None."""
+    try:
+        src = json.loads((Path(run_dir) / 'run.json').read_text()).get('image_quality_source') or {}
+    except (OSError, ValueError):
+        return None
+    if src.get('method') == 'cache':
+        return f'cache {src.get("cache_path")} ({src.get("images")} images)'
+    return src.get('method')
 
 
 # ---------------------------------------------------------------- scoring

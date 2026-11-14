@@ -229,3 +229,87 @@ def test_license_check_reports_missing_license(tmp_path):
     ok, why = ps.license_ok(fake_python(tmp_path, FAKE_METASHAPE_ACTIVATED=0))
     assert not ok and 'license unavailable' in why
     assert ps.license_ok('')[1].startswith('BD3D_METASHAPE_PYTHON is not set')
+
+
+# ---------------------------------------------------------------- cancel output, run names, image-quality cache
+
+@pytest.mark.skipif(sys.platform != 'darwin', reason='resource_monitor samples macOS sysctl')
+def test_watchdog_cancel_prints_one_line_not_a_traceback(tmp_path):
+    import signal
+    import subprocess
+    run = tmp_path / 'r'
+    proc = subprocess.Popen([sys.executable, '-m', 'bd3d_quality.resource_monitor', '--output', str(run),
+                             '--seconds', '60', '--', sys.executable, '-c', 'import time; time.sleep(30)'],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
+                            env={**os.environ, 'PYTHONPATH': str(ps.REPO / 'src')})
+    console = tmp_path / 'r-console.log'
+    for _ in range(200):
+        if console.exists():
+            break
+        time.sleep(0.05)
+    time.sleep(0.5)
+    os.killpg(proc.pid, signal.SIGTERM)
+    out, _ = proc.communicate(timeout=30)
+    assert proc.returncode == 2 and 'Traceback' not in out
+    assert out.strip().splitlines()[-1] == f'cancelled by user; outputs kept in {run.resolve()} (record: r-resources.json)'
+    res = json.loads((tmp_path / 'r-resources.json').read_text())
+    assert res['status'] == 'watchdog_interrupted'
+    assert ps.run_outcome(run)[0] == 'cancelled'
+
+
+def test_run_names_skip_leftovers_of_cancelled_runs(tmp_path):
+    assert ps.unused_run_name(tmp_path, 'dog-mesh') == 'dog-mesh'
+    (tmp_path / 'dog-mesh-watchdog.log').write_text('')                 # cancelled before the folder existed
+    assert ps.unused_run_name(tmp_path, 'dog-mesh') == 'dog-mesh-2'
+    (tmp_path / 'manifests').mkdir()
+    (tmp_path / 'manifests' / 'dog-mesh-2.json').write_text('{}')     # manifest written, run never started
+    assert ps.unused_run_name(tmp_path, 'dog-mesh') == 'dog-mesh-3'
+    (tmp_path / 'manifests' / 'dog-align.json').write_text('{}')
+    assert ps.capture_name('/x/dog', tmp_path) == 'dog-2'
+    assert ps.run_name_taken(tmp_path, 'dog-align') and not ps.run_name_taken(tmp_path, 'dog-2-align')
+
+
+def write_cache(path, manifest, skip=0, sources=1):
+    rows = ['path,sha256,image_quality,source_run_id,source_experiment_id,metashape_version']
+    for i, e in enumerate(manifest['images'][skip:]):
+        rows.append(f'{e["path"]},{e["sha256"]},0.8,run{i % sources},exp,2.2.1')
+    path.write_text('\n'.join(rows) + '\n')
+    return path
+
+
+def test_find_quality_cache(tmp_path):
+    ref = tmp_path / 'set' / 'ref'
+    ref.mkdir(parents=True)
+    assert ps.find_quality_cache(ref) is None and ps.find_quality_cache(None) is None
+    (tmp_path / 'set' / ps.CACHE_NAME).write_text('x')
+    assert ps.find_quality_cache(ref) == tmp_path / 'set' / ps.CACHE_NAME            # beside the run
+    (ref / ps.CACHE_NAME).write_text('x')
+    assert ps.find_quality_cache(ref) == ref / ps.CACHE_NAME                         # in the run wins
+    real = ps.find_quality_cache(ps.REPO / 'results/pahma-5-613-v2/ref145b')
+    assert real == ps.REPO / 'results/pahma-5-613-v2' / ps.CACHE_NAME
+    assert ps.find_quality_cache(ps.REPO / 'results/gpu-pilot-d8/ref50') is None
+
+
+def test_cache_coverage(dataset, tmp_path):
+    _, m = dataset
+    assert ps.cache_coverage(write_cache(tmp_path / 'full.csv', m), m) == (True, 'cache covers all 3 photos')
+    assert ps.cache_coverage(write_cache(tmp_path / 'part.csv', m, skip=1), m) == (
+        False, 'cache covers 2 of 3 photos (matched by SHA-256)')
+    assert not ps.cache_coverage(write_cache(tmp_path / 'mixed.csv', m, sources=2), m)[0]
+    assert ps.cache_coverage(tmp_path / 'missing.csv', m)[0] is False
+    cmd = ps.watched_command('/py', 'm.json', 'p', 'r', ps.ALIGN_LIMITS, image_quality_cache=tmp_path / 'full.csv')
+    assert cmd[-2:] == ['--image-quality-cache', str((tmp_path / 'full.csv').resolve())]
+
+
+@pytest.mark.skipif(sys.platform != 'darwin', reason='resource_monitor samples macOS sysctl')
+def test_align_with_image_quality_cache_through_watchdog(dataset, tmp_path):
+    root, _ = dataset
+    paths = ps.CapturePaths(tmp_path / 'out', 'dog')
+    align = ps.alignment_manifest(root, 'dog')
+    ps.write_manifest(paths.align_manifest, align)
+    cache = write_cache(tmp_path / ps.CACHE_NAME, align)
+    cmd = ps.watched_command(fake_python(tmp_path), paths.align_manifest, root, paths.align_run, ps.ALIGN_LIMITS,
+                             image_quality_cache=cache)
+    lines = []
+    assert ps.WatchedProcess(cmd, paths.align_run, lines.append).run(poll=0.1) == 0, '\n'.join(lines)
+    assert ps.image_quality_source(paths.align_run) == f'cache {cache.resolve()} (3 images)'

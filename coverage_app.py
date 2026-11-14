@@ -60,6 +60,7 @@ class CoverageApp:
         if (default_run() / 'cameras.csv').exists():
             if (default_reference() / 'cameras.csv').exists():
                 self.reference = default_reference()
+            self.update_cache_option()
             self.open_run(default_run())
 
     # ------------------------------------------------------------ layout
@@ -91,6 +92,11 @@ class CoverageApp:
                  fg='#444').grid(row=2, column=0, columnspan=2, sticky='w')
         tk.Label(info, text=f'Watchdog limits: align {ps.ALIGN_LIMITS.text()}; mesh {ps.MESH_LIMITS.text()}',
                  fg='#444').grid(row=3, column=0, columnspan=2, sticky='w')
+        self.iq_var = tk.BooleanVar(value=False)
+        self.iq_cache = None
+        self.iq_check = tk.Checkbutton(info, text='Reuse image quality from reference (skips analyzeImages in Align)',
+                                       variable=self.iq_var, state='disabled')
+        self.iq_check.grid(row=4, column=0, columnspan=2, sticky='w')
 
         mid = tk.Frame(self.root)
         mid.pack(fill='both', expand=True, padx=8)
@@ -356,6 +362,7 @@ class CoverageApp:
         folder = folder and self.check_folder('reference folder', folder, need=['cameras.csv'])
         if folder:
             self.reference = folder
+            self.update_cache_option()
             self.set_status('score', 'not started')
             self.score_label.config(text='')
             if self.run:
@@ -364,6 +371,7 @@ class CoverageApp:
 
     def clear_reference(self):
         self.reference = None
+        self.update_cache_option()
         self.score_label.config(text='')
         self.set_status('score', 'not started')
         if self.run:
@@ -377,8 +385,25 @@ class CoverageApp:
 
     # ------------------------------------------------------------ steps
 
+    def update_cache_option(self):
+        """Offer the reference's image_quality_cache.csv (in or beside the reference run), if any."""
+        self.iq_cache = ps.find_quality_cache(self.reference)
+        if self.iq_cache:
+            self.iq_check.config(state='normal', text=f'Reuse image quality from reference ({self.iq_cache}); '
+                                                      'skips analyzeImages in Align')
+        else:
+            self.iq_var.set(False)
+            self.iq_check.config(state='disabled', text='Reuse image quality from reference '
+                                                        '(no image_quality_cache.csv in or beside the reference)')
+
     def run_align(self):
         python, photos, paths = self.py_var.get().strip(), self.photos, self.paths
+        if ps.run_name_taken(paths.output, paths.align_run.name):   # e.g. an earlier cancelled attempt
+            new = ps.capture_name(photos, paths.output)
+            self.log(f'{paths.align_run} already exists (earlier attempt, kept); using {paths.output / (new + "-align")}')
+            paths = self.paths = ps.CapturePaths(paths.output, new)
+            self.where.config(text=f'photos {photos}  ->  {paths.align_run}')
+        cache = self.iq_cache if self.iq_var.get() else None
 
         def job():
             self.post(self.log, f'license check with {python or "(BD3D_METASHAPE_PYTHON not set)"}')
@@ -391,8 +416,15 @@ class CoverageApp:
             ps.write_manifest(paths.align_manifest, manifest)
             self.post(self.log, f'manifest {paths.align_manifest}: {manifest["image_count"]} images, '
                                 f'{manifest["experiment_id"]}')
+            use = None
+            if cache is not None:
+                usable, why = ps.cache_coverage(cache, manifest)
+                use = cache if usable else None
+                self.post(self.log, f'image quality: {why}; ' + (f'reusing {cache}' if usable else
+                                                                  'not used, analyzeImages will run'))
             self.run_watched('align', ps.watched_command(python, paths.align_manifest, photos, paths.align_run,
-                                                         ps.ALIGN_LIMITS), paths.align_run, self.align_done)
+                                                         ps.ALIGN_LIMITS, image_quality_cache=use),
+                             paths.align_run, self.align_done)
         self.start('align', job)
 
     def run_watched(self, key, cmd, run_dir, on_done):
@@ -403,7 +435,7 @@ class CoverageApp:
         code = wp.run()
         state, detail = ps.run_outcome(run_dir)
         if wp.cancelled:
-            state, detail = 'cancelled', f'stopped by Cancel; watchdog exit {code}; outputs kept in {run_dir}'
+            state, detail = 'cancelled', 'by user'
         self.post(on_done, key, run_dir, state, detail)
 
     def set_proc(self, wp):
@@ -411,6 +443,9 @@ class CoverageApp:
         self.refresh_buttons()
 
     def align_done(self, key, run_dir, state, detail):
+        source = ps.image_quality_source(run_dir)
+        if source:
+            self.log(f'image quality source: {source}')
         self.finish(key, state, detail, show_error=state == 'failed')
         if (run_dir / 'cameras.csv').exists():   # failed alignments still write their camera table
             self.run = run_dir
@@ -450,11 +485,9 @@ class CoverageApp:
                 return
             self.photos = photos
         paths = self.paths or ps.CapturePaths(align_run.parent, align_run.name)
-        mesh_run = paths.mesh_run
-        n = 1
-        while mesh_run.exists() or mesh_run.with_name(mesh_run.name + '-watchdog.log').exists():
-            n += 1
-            mesh_run = paths.output / f'{paths.name}-mesh-{n}'
+        mesh_run = paths.output / ps.unused_run_name(paths.output, paths.mesh_run.name)
+        if mesh_run != paths.mesh_run:
+            self.log(f'{paths.mesh_run} already exists (earlier attempt, kept); using {mesh_run}')
 
         def job():
             ok, detail = ps.license_ok(python)

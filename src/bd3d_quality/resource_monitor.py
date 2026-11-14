@@ -168,9 +168,16 @@ def main():
     def interrupted(signum, frame):
         raise KeyboardInterrupt('watchdog received termination signal')
     signal.signal(signal.SIGTERM, interrupted)
-    result = run_monitored(command, a.output, seconds=a.seconds, allow_cloned_checkpoint=a.allow_cloned_checkpoint,
-                           swap_growth_mib=a.swap_growth_mib, limit_note=a.limit_note, seconds_note=a.seconds_note,
-                           rss_gib=a.rss_gib, rss_note=a.rss_note)
+    try:
+        result = run_monitored(command, a.output, seconds=a.seconds, allow_cloned_checkpoint=a.allow_cloned_checkpoint,
+                               swap_growth_mib=a.swap_growth_mib, limit_note=a.limit_note, seconds_note=a.seconds_note,
+                               rss_gib=a.rss_gib, rss_note=a.rss_note)
+    except KeyboardInterrupt:
+        # Cancel (SIGTERM) or Ctrl-C: run_monitored has already stopped the child and written the
+        # watchdog_interrupted record; report it in one line instead of a traceback.
+        out = a.output.resolve()
+        print(f'cancelled by user; outputs kept in {out} (record: {out.name}-resources.json)', flush=True)
+        return 2
     print(result['status'])
     return 0 if result['status'] == 'complete' else 2
 

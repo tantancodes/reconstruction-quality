@@ -400,6 +400,8 @@ this repository.
 
 Script-by-script descriptions: [scripts/README.md](scripts/README.md).
 
+Camera coverage viewer for one aligned run (top-down layout, azimuth × elevation map, missing regions): `python coverage_app.py`
+
 ### TensorBoard
 
 Training logs for the synthetic benchmark are written to `runs/synthetic/<condition>/<model>/<seed>`.

@@ -44,3 +44,6 @@ notebooks/.ipynb_checkpoints/
 *.stl
 *.fbx
 *.npz
+
+# capture app local settings (Metashape interpreter)
+.coverage-app.json

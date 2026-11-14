@@ -12,6 +12,7 @@ that the main thread drains with root.after(), so every UI update and error box 
 main thread (required on macOS).
 """
 import json
+import os
 import queue
 import sys
 import threading
@@ -30,6 +31,7 @@ try:
     import bd3d_quality  # noqa: F401
 except ImportError:  # not installed: use the source tree next to this file
     sys.path.insert(0, str(Path(__file__).resolve().parent / 'src'))
+from bd3d_quality import metashape_locator as ml
 from bd3d_quality import pipeline_steps as ps
 from bd3d_quality.coverage import BAND_NAMES, analyze, compare, default_reference, default_run
 
@@ -51,8 +53,10 @@ class CoverageApp:
         root.title('Capture coverage and pipeline')
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.report_callback_exception = self.callback_error
+        self.metashape_ok = False
         self.build_ui()
         self.root.after(100, self.pump)
+        self.detect_python()
         if (default_run() / 'cameras.csv').exists():
             if (default_reference() / 'cameras.csv').exists():
                 self.reference = default_reference()
@@ -75,8 +79,14 @@ class CoverageApp:
         tk.Label(info, text='Steps 1 and 3 run Metashape and need a local Metashape license.',
                  fg='#c0392b', font=('TkDefaultFont', 12, 'bold')).grid(row=0, column=0, columnspan=2, sticky='w')
         tk.Label(info, text='Metashape Python:').grid(row=1, column=0, sticky='w')
-        self.py_var = tk.StringVar(value=ps.metashape_python())
-        tk.Entry(info, textvariable=self.py_var, width=70).grid(row=1, column=1, sticky='w')
+        row = tk.Frame(info)
+        row.grid(row=1, column=1, sticky='w')
+        self.py_var = tk.StringVar(value='')
+        tk.Entry(row, textvariable=self.py_var, width=70, state='readonly').pack(side='left')
+        self.change_button = tk.Button(row, text='Change…', command=self.change_python)
+        self.change_button.pack(side='left', padx=4)
+        self.ms_label = tk.Label(row, text='searching for a Python that can import Metashape…', fg='#777')
+        self.ms_label.pack(side='left', padx=4)
         tk.Label(info, text=f'Mesh settings (as pilot ref50 / ref145b): {ps.settings_text()}',
                  fg='#444').grid(row=2, column=0, columnspan=2, sticky='w')
         tk.Label(info, text=f'Watchdog limits: align {ps.ALIGN_LIMITS.text()}; mesh {ps.MESH_LIMITS.text()}',
@@ -155,10 +165,11 @@ class CoverageApp:
     def refresh_buttons(self):
         busy = self.worker is not None
         can = {
-            'align': self.paths is not None and self.status['align'].cget('text') in ('not started', 'failed',
-                                                                                       'cancelled'),
+            'align': self.metashape_ok and self.paths is not None
+                     and self.status['align'].cget('text') in ('not started', 'failed', 'cancelled'),
             'coverage': self.run is not None and (self.run / 'cameras.csv').exists(),
-            'mesh': self.run is not None and ps.is_alignment_checkpoint(self.run) and self.mesh_run is None,
+            'mesh': self.metashape_ok and self.run is not None and ps.is_alignment_checkpoint(self.run)
+                    and self.mesh_run is None,
             'score': self.mesh_run is not None and self.reference is not None
                      and (self.reference / 'raw-mesh.obj').exists(),
         }
@@ -201,6 +212,97 @@ class CoverageApp:
         start = start or (default_run().parent if default_run().parent.exists() else Path.home())
         folder = filedialog.askdirectory(title=title, initialdir=str(start), mustexist=True)
         return Path(folder) if folder else None
+
+    # ------------------------------------------------------------ Metashape interpreter
+
+    def detect_python(self):
+        """Search for a Python that imports Metashape in a background thread (see metashape_locator)."""
+        self.change_button.config(state='disabled')
+
+        def on_try(source, python, ok, detail):
+            self.post(self.log, f'Metashape Python: {"OK " if ok else "no "} {python}  [{source}] {detail}')
+
+        def job():
+            try:
+                search = ml.find_metashape_python(on_try=on_try)
+            except Exception as exc:
+                search = ml.Search(tried=[('search', '', f'{type(exc).__name__}: {exc}')])
+            self.post(self.python_detected, search)
+        threading.Thread(target=job, daemon=True).start()
+
+    def python_detected(self, search):
+        self.change_button.config(state='normal')
+        if search.found:
+            self.use_python(search.found.python, search.found.version, search.found.source)
+        else:
+            self.set_python(None)
+            self.log(f'Metashape Python: none of {len(search.tried)} candidates can import Metashape; '
+                     'Align and Build mesh stay disabled. Use Change… or set BD3D_METASHAPE_PYTHON.')
+
+    def use_python(self, python, version, source):
+        self.set_python(python, f'Metashape {version} (found via {source})')
+        try:
+            ml.save_choice(python)
+        except OSError as exc:
+            self.log(f'could not save the Metashape Python choice: {exc}')
+
+    def set_python(self, python, text=None):
+        self.metashape_ok = python is not None
+        self.py_var.set(python or '')
+        if python:
+            self.ms_label.config(text=text, fg='#2a8a2a')
+        else:
+            self.ms_label.config(text='No Python that can import Metashape was found: Align and Build mesh '
+                                      'are disabled. Use Change… to pick one.', fg='#c0392b')
+        self.refresh_buttons()
+
+    def change_python(self):
+        """Small dialog: type or browse to an interpreter, test it, and use and save it if it works."""
+        win = tk.Toplevel(self.root)
+        win.title('Metashape Python')
+        win.transient(self.root)
+        tk.Label(win, text='Python interpreter that can import Metashape (e.g. a venv\'s bin/python;\n'
+                           'the one inside MetashapePro.app can be typed or pasted here):',
+                 justify='left').pack(anchor='w', padx=10, pady=(10, 4))
+        var = tk.StringVar(value=self.py_var.get())
+        entry = tk.Entry(win, textvariable=var, width=80)
+        entry.pack(padx=10, fill='x')
+        note = tk.Label(win, text='', fg='#777', justify='left')
+        note.pack(anchor='w', padx=10, pady=4)
+        buttons = tk.Frame(win)
+        buttons.pack(fill='x', padx=10, pady=(0, 10))
+
+        def browse():
+            path = filedialog.askopenfilename(parent=win, title='Python interpreter',
+                                              initialdir=str(Path(var.get()).parent if var.get() else Path.home()))
+            if path:
+                var.set(path)
+
+        def done(python, ok, detail):
+            if not win.winfo_exists():
+                return
+            test.config(state='normal')
+            if ok:
+                self.log(f'Metashape Python: OK  {python}  [chosen by you] {detail}')
+                self.use_python(python, detail, 'your choice')
+                win.destroy()
+            else:
+                note.config(text=f'Does not work: {detail}', fg='#c0392b')
+                self.log(f'Metashape Python: no  {python}  [chosen by you] {detail}')
+
+        def try_it():
+            python = os.path.expanduser(var.get().strip())
+            if not python:
+                return
+            test.config(state='disabled')
+            note.config(text='testing: import Metashape …', fg='#777')
+            threading.Thread(target=lambda: self.post(done, python, *ml.probe(python)), daemon=True).start()
+
+        tk.Button(buttons, text='Browse…', command=browse).pack(side='left')
+        test = tk.Button(buttons, text='Test and use', command=try_it)
+        test.pack(side='right')
+        tk.Button(buttons, text='Cancel', command=win.destroy).pack(side='right', padx=4)
+        entry.focus_set()
 
     # ------------------------------------------------------------ entry points
 

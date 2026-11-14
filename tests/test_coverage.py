@@ -1,7 +1,7 @@
 import csv
 import numpy as np
 from scipy.spatial.transform import Rotation
-from bd3d_quality.coverage import analyze, describe_gaps
+from bd3d_quality.coverage import analyze, compare, describe_gaps
 
 
 def write_rings(path, rings, R=np.eye(3), t=np.zeros(3), scale=1.0, failed=()):
@@ -9,14 +9,12 @@ def write_rings(path, rings, R=np.eye(3), t=np.zeros(3), scale=1.0, failed=()):
     with open(path, 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['label', 'aligned', 'x', 'y', 'z', 'view_x', 'view_y', 'view_z'])
-        i = 0
         for el, azs in rings:
             for az in azs:
                 a, e = np.radians(az), np.radians(el)
                 d = np.array([np.cos(e) * np.cos(a), np.cos(e) * np.sin(a), np.sin(e)])
                 p, v = scale * (R @ d) + t, -(R @ d)
-                w.writerow([f'c{i:03d}', True, *p, *v])
-                i += 1
+                w.writerow([f'e{el}_a{az}', True, *p, *v])   # same camera, same label in every copy
         for label in failed:
             w.writerow([label, False, '', '', '', '', '', ''])
 
@@ -47,4 +45,34 @@ def test_rotated_full_rings_recover_up_and_count_failures(tmp_path):
 def test_wrapping_gap_and_empty_band():
     counts = np.array([[0, 3, 3, 3, 0, 0], [0, 0, 0, 0, 0, 0], [3, 3, 3, 3, 3, 3]])
     edges = np.linspace(0, 360, 7)
-    assert describe_gaps(counts, edges) == 'Missing: low cameras from 240° to 60°; mid cameras at every azimuth'
+    assert describe_gaps(counts < 2, edges) == 'low cameras from 240° to 60°; mid cameras at every azimuth'
+    assert describe_gaps(counts < 0, edges) is None
+
+
+def test_compare_finds_removed_sector_in_reference_angles(tmp_path):
+    full = np.arange(0, 360, 10)
+    high = [a for a in full if not 60 < a < 120]          # the reference itself never covers high 60-120
+    ref_rings = [(5, full), (30, full), (55, high)]
+    write_rings(tmp_path / 'ref.csv', ref_rings)
+    # the run: same cameras minus a low sector, in its own arbitrary Metashape-like frame
+    run_rings = [(5, [a for a in full if not 150 < a < 270]), (30, full), (55, high)]
+    R = Rotation.from_euler('zyx', [123, 17, -48], degrees=True).as_matrix()
+    write_rings(tmp_path / 'run.csv', run_rings, R=R, t=np.array([-4., 9., 1.]), scale=0.3, failed=['bad'])
+    cov = compare(tmp_path / 'run.csv', tmp_path / 'ref.csv')
+    assert cov.summary == ('Missing vs reference: low cameras from 150° to 270° (reference angles)'
+                           ' (1 of 93 cameras failed to align)')
+    shared, resid = cov.fit
+    assert shared == 92 and resid < 1e-9
+    # the reference's own gap is grey, not red
+    assert cov.never[2, 2:4].all() and not cov.missing[2].any()
+    # run cameras land on the reference cameras with the same labels
+    ref = cov.reference
+    pos = dict(zip(ref.labels, ref.positions))
+    np.testing.assert_allclose(cov.positions, [pos[l] for l in cov.labels], atol=1e-9)
+
+
+def test_compare_identical_run_has_no_gaps(tmp_path):
+    full = np.arange(0, 360, 10)
+    write_rings(tmp_path / 'ref.csv', [(5, full), (30, full), (55, full)])
+    cov = compare(tmp_path / 'ref.csv', tmp_path / 'ref.csv')
+    assert cov.summary == 'Covers every cell the reference covers.'

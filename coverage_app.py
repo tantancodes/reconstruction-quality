@@ -1,16 +1,25 @@
-"""Camera coverage viewer for one aligned run: python coverage_app.py
+"""Capture check and pipeline app: python coverage_app.py
 
-Open a run folder containing cameras.csv to see a top-down camera layout and an
-azimuth x elevation coverage map (red = fewer than 2 cameras). Measured coverage only.
+New capture: photo folder + output folder, then
+  1. Align (alignment only, existing pipeline under the resource watchdog; needs Metashape)
+  2. Coverage view (top-down cameras and azimuth x elevation map; vs reference if chosen)
+  3. Build mesh (optional; continues the alignment run to raw-mesh.obj; needs Metashape)
+  4. Score vs reference (optional; v3 label, missing and extra RMSE)
+Open existing run: coverage, plus the score when both runs have raw-mesh.obj.
 
-Optionally compare to a reference run: the run is moved into the reference frame with the
-v3 camera similarity fit, red = the reference covers the cell (2+ cameras) but this run does
-not, grey = the reference never covered it either. Default: side40_s1 against ref145b.
+Long steps run in a worker thread. The worker never touches Tk: it posts callables to a queue
+that the main thread drains with root.after(), so every UI update and error box happens on the
+main thread (required on macOS).
 """
+import json
+import queue
 import sys
+import threading
 import tkinter as tk
+import traceback
 from pathlib import Path
 from tkinter import filedialog, messagebox
+from tkinter.scrolledtext import ScrolledText
 
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -18,77 +27,389 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
 try:
-    from bd3d_quality.coverage import BAND_NAMES, analyze, compare, default_reference, default_run
+    import bd3d_quality  # noqa: F401
 except ImportError:  # not installed: use the source tree next to this file
     sys.path.insert(0, str(Path(__file__).resolve().parent / 'src'))
-    from bd3d_quality.coverage import BAND_NAMES, analyze, compare, default_reference, default_run
+from bd3d_quality import pipeline_steps as ps
+from bd3d_quality.coverage import BAND_NAMES, analyze, compare, default_reference, default_run
 
 RED, GREY = '#e05a5a', '#c8c8c8'
+STEPS = [('align', '1. Align (needs Metashape)'), ('coverage', '2. Coverage view'),
+         ('mesh', '3. Build mesh (optional, needs Metashape)'), ('score', '4. Score vs reference (optional)')]
+STATUS_COLOURS = {'not started': '#777777', 'running': '#1f6fd1', 'done': '#2a8a2a', 'failed': '#c0392b',
+                  'cancelled': '#b8860b', 'not available': '#aaaaaa'}
 
 
 class CoverageApp:
     def __init__(self, root):
         self.root = root
-        self.run, self.reference = None, None
-        root.title('Camera coverage')
-        root.report_callback_exception = lambda *exc: messagebox.showerror('Error', str(exc[1]))
-        bar = tk.Frame(root)
-        bar.pack(fill='x', padx=8, pady=6)
-        tk.Button(bar, text='Open run…', command=self.choose_run).pack(side='left')
-        tk.Button(bar, text='Compare to reference…', command=self.choose_reference).pack(side='left', padx=4)
-        tk.Button(bar, text='No reference', command=lambda: self.load(self.run, None)).pack(side='left')
-        self.path_label = tk.Label(bar, anchor='w')
-        self.path_label.pack(side='left', padx=8)
-        self.fig = Figure(figsize=(12, 5.5))
-        self.canvas = FigureCanvasTkAgg(self.fig, master=root)
-        self.canvas.get_tk_widget().pack(fill='both', expand=True)
-        self.summary = tk.Label(root, anchor='w', justify='left', wraplength=1100, font=('TkDefaultFont', 13))
-        self.summary.pack(fill='x', padx=8, pady=6)
+        self.q = queue.Queue()
+        self.worker = None        # running step key, or None
+        self.proc = None          # WatchedProcess of the running step (for Cancel)
+        self.photos = self.paths = None
+        self.run = self.mesh_run = self.reference = None
+        root.title('Capture coverage and pipeline')
+        root.protocol('WM_DELETE_WINDOW', self.close)
+        root.report_callback_exception = self.callback_error
+        self.build_ui()
+        self.root.after(100, self.pump)
         if (default_run() / 'cameras.csv').exists():
-            ref = default_reference() if (default_reference() / 'cameras.csv').exists() else None
-            self.load(default_run(), ref)
+            if (default_reference() / 'cameras.csv').exists():
+                self.reference = default_reference()
+            self.open_run(default_run())
 
-    def ask_folder(self, title):
-        start = default_run().parent if default_run().parent.exists() else Path.cwd()
-        folder = filedialog.askdirectory(title=title, initialdir=start)
+    # ------------------------------------------------------------ layout
+
+    def build_ui(self):
+        top = tk.Frame(self.root)
+        top.pack(fill='x', padx=8, pady=(6, 0))
+        tk.Button(top, text='New capture…', command=self.new_capture).pack(side='left')
+        tk.Button(top, text='Open existing run…', command=self.choose_run).pack(side='left', padx=4)
+        tk.Button(top, text='Reference…', command=self.choose_reference).pack(side='left', padx=(12, 0))
+        tk.Button(top, text='No reference', command=self.clear_reference).pack(side='left', padx=4)
+        self.where = tk.Label(top, anchor='w')
+        self.where.pack(side='left', padx=8, fill='x', expand=True)
+
+        info = tk.Frame(self.root)
+        info.pack(fill='x', padx=8, pady=4)
+        tk.Label(info, text='Steps 1 and 3 run Metashape and need a local Metashape license.',
+                 fg='#c0392b', font=('TkDefaultFont', 12, 'bold')).grid(row=0, column=0, columnspan=2, sticky='w')
+        tk.Label(info, text='Metashape Python:').grid(row=1, column=0, sticky='w')
+        self.py_var = tk.StringVar(value=ps.metashape_python())
+        tk.Entry(info, textvariable=self.py_var, width=70).grid(row=1, column=1, sticky='w')
+        tk.Label(info, text=f'Mesh settings (as pilot ref50 / ref145b): {ps.settings_text()}',
+                 fg='#444').grid(row=2, column=0, columnspan=2, sticky='w')
+        tk.Label(info, text=f'Watchdog limits: align {ps.ALIGN_LIMITS.text()}; mesh {ps.MESH_LIMITS.text()}',
+                 fg='#444').grid(row=3, column=0, columnspan=2, sticky='w')
+
+        mid = tk.Frame(self.root)
+        mid.pack(fill='both', expand=True, padx=8)
+        steps = tk.Frame(mid)
+        steps.pack(side='left', fill='y', padx=(0, 8), pady=4)
+        self.status, self.buttons = {}, {}
+        actions = {'align': self.run_align, 'coverage': self.show_coverage, 'mesh': self.run_mesh,
+                   'score': self.run_score}
+        for i, (key, text) in enumerate(STEPS):
+            tk.Label(steps, text=text, anchor='w').grid(row=2 * i, column=0, columnspan=2, sticky='w', pady=(8, 0))
+            self.status[key] = tk.Label(steps, text='not started', width=13, anchor='w')
+            self.status[key].grid(row=2 * i + 1, column=0, sticky='w')
+            self.buttons[key] = tk.Button(steps, text='Run' if key != 'coverage' else 'Show',
+                                          command=actions[key], state='disabled')
+            self.buttons[key].grid(row=2 * i + 1, column=1, sticky='e')
+        self.cancel_button = tk.Button(steps, text='Cancel running step', command=self.cancel, state='disabled')
+        self.cancel_button.grid(row=2 * len(STEPS), column=0, columnspan=2, sticky='we', pady=(16, 0))
+        for key in self.status:
+            self.set_status(key, 'not started')
+
+        self.fig = Figure(figsize=(11, 5))
+        self.canvas = FigureCanvasTkAgg(self.fig, master=mid)
+        self.canvas.get_tk_widget().pack(side='left', fill='both', expand=True)
+
+        self.summary = tk.Label(self.root, anchor='w', justify='left', wraplength=1250, font=('TkDefaultFont', 13))
+        self.summary.pack(fill='x', padx=8)
+        self.score_label = tk.Label(self.root, anchor='w', justify='left', wraplength=1250, fg='#1f4e8a')
+        self.score_label.pack(fill='x', padx=8)
+        self.log_box = ScrolledText(self.root, height=10, state='disabled', font=('Menlo', 10))
+        self.log_box.pack(fill='both', padx=8, pady=(4, 8))
+
+    # ------------------------------------------------------------ main-thread plumbing
+
+    def post(self, fn, *args):
+        """Called from any thread; fn(*args) runs on the main thread."""
+        self.q.put((fn, args))
+
+    def pump(self):
+        try:
+            while True:
+                fn, args = self.q.get_nowait()
+                try:
+                    fn(*args)
+                except Exception as exc:
+                    self.error('Unexpected error', exc)
+        except queue.Empty:
+            pass
+        self.root.after(100, self.pump)
+
+    def log(self, text):
+        self.log_box.configure(state='normal')
+        self.log_box.insert('end', text + '\n')
+        if int(self.log_box.index('end-1c').split('.')[0]) > 5000:
+            self.log_box.delete('1.0', '1000.0')
+        self.log_box.see('end')
+        self.log_box.configure(state='disabled')
+
+    def error(self, title, exc_or_text):
+        text = exc_or_text if isinstance(exc_or_text, str) else f'{type(exc_or_text).__name__}: {exc_or_text}'
+        self.log(f'ERROR: {title}: {text}')
+        messagebox.showerror(title, text)
+
+    def callback_error(self, exc_type, exc, tb):
+        self.log(''.join(traceback.format_exception(exc_type, exc, tb)).rstrip())
+        self.error('Unexpected error', exc)
+
+    def set_status(self, key, state, detail=''):
+        self.status[key].config(text=state, fg=STATUS_COLOURS.get(state, 'black'))
+        if detail:
+            self.log(f'{dict(STEPS)[key]}: {state} ({detail})')
+
+    def refresh_buttons(self):
+        busy = self.worker is not None
+        can = {
+            'align': self.paths is not None and self.status['align'].cget('text') in ('not started', 'failed',
+                                                                                       'cancelled'),
+            'coverage': self.run is not None and (self.run / 'cameras.csv').exists(),
+            'mesh': self.run is not None and ps.is_alignment_checkpoint(self.run) and self.mesh_run is None,
+            'score': self.mesh_run is not None and self.reference is not None
+                     and (self.reference / 'raw-mesh.obj').exists(),
+        }
+        for key, ok in can.items():
+            self.buttons[key].config(state='normal' if ok and not busy else 'disabled')
+        self.cancel_button.config(state='normal' if self.proc is not None else 'disabled')
+
+    def start(self, key, job):
+        """Run job() in a worker thread; it reports back only through self.post()."""
+        if self.worker is not None:
+            messagebox.showinfo('Busy', f'{dict(STEPS)[self.worker]} is still running.')
+            return
+        self.worker = key
+        self.set_status(key, 'running')
+        self.log(f'--- {dict(STEPS)[key]}: started')
+        self.refresh_buttons()
+
+        def body():
+            try:
+                job()
+            except Exception as exc:
+                self.post(self.finish, key, 'failed', f'{type(exc).__name__}: {exc}', True)
+        threading.Thread(target=body, daemon=True).start()
+
+    def finish(self, key, state, detail='', show_error=False):
+        self.worker, self.proc = None, None
+        self.set_status(key, state, detail or state)
+        if show_error:
+            self.error(f'{dict(STEPS)[key]} {state}', detail)
+        self.refresh_buttons()
+
+    def check_folder(self, what, path, need=()):
+        ok, resolved, reason = ps.inspect_folder(path, need)
+        self.log(f'{what}: tried {resolved} -> {reason}')
+        if not ok:
+            self.error(f'Cannot use {what}', f'{resolved}\n{reason}')
+        return resolved if ok else None
+
+    def ask_folder(self, title, start=None):
+        start = start or (default_run().parent if default_run().parent.exists() else Path.home())
+        folder = filedialog.askdirectory(title=title, initialdir=str(start), mustexist=True)
         return Path(folder) if folder else None
+
+    # ------------------------------------------------------------ entry points
+
+    def new_capture(self):
+        if self.worker:
+            return messagebox.showinfo('Busy', 'Wait for the running step or cancel it first.')
+        photos = self.ask_folder('Photo folder of the new capture', Path.home())
+        photos = photos and self.check_folder('photo folder', photos)
+        if not photos:
+            return
+        output = self.ask_folder('Output folder for the runs (new runs are created inside it)', photos.parent)
+        output = output and self.check_folder('output folder', output)
+        if not output:
+            return
+        self.photos, self.paths = photos, ps.CapturePaths(output, ps.capture_name(photos, output))
+        self.run = self.mesh_run = None
+        for key in self.status:
+            self.set_status(key, 'not started')
+        self.fig.clear()
+        self.canvas.draw()
+        self.summary.config(text='')
+        self.score_label.config(text='')
+        self.where.config(text=f'photos {photos}  ->  {self.paths.align_run}')
+        self.log(f'new capture "{self.paths.name}": photos {photos}, runs in {output}')
+        self.refresh_buttons()
 
     def choose_run(self):
         folder = self.ask_folder('Choose a run folder with cameras.csv')
         if folder:
-            self.load(folder, self.reference)
+            self.open_run(folder)
+
+    def open_run(self, folder):
+        if self.worker:
+            return messagebox.showinfo('Busy', 'Wait for the running step or cancel it first.')
+        folder = self.check_folder('run folder', folder, need=['cameras.csv'])
+        if not folder:
+            return
+        self.photos = self.paths = None
+        self.run = folder
+        self.mesh_run = folder if (folder / 'raw-mesh.obj').exists() else None
+        self.set_status('align', 'done')
+        self.set_status('mesh', 'done' if self.mesh_run else
+                        'not started' if ps.is_alignment_checkpoint(folder) else 'not available')
+        self.set_status('score', 'not started')
+        self.score_label.config(text='')
+        self.show_coverage()
+        self.auto_score()
 
     def choose_reference(self):
-        if self.run is None:
-            messagebox.showerror('No run', 'Open a run first.')
-            return
         folder = self.ask_folder('Choose a reference run folder with cameras.csv')
+        folder = folder and self.check_folder('reference folder', folder, need=['cameras.csv'])
         if folder:
-            self.load(self.run, folder)
+            self.reference = folder
+            self.set_status('score', 'not started')
+            self.score_label.config(text='')
+            if self.run:
+                self.show_coverage()
+            self.auto_score()
 
-    def load(self, folder, reference):
-        if folder is None:
-            return
+    def clear_reference(self):
+        self.reference = None
+        self.score_label.config(text='')
+        self.set_status('score', 'not started')
+        if self.run:
+            self.show_coverage()
+        self.refresh_buttons()
+
+    def auto_score(self):
+        self.refresh_buttons()
+        if self.buttons['score'].cget('state') == 'normal':
+            self.run_score()
+
+    # ------------------------------------------------------------ steps
+
+    def run_align(self):
+        python, photos, paths = self.py_var.get().strip(), self.photos, self.paths
+
+        def job():
+            self.post(self.log, f'license check with {python or "(BD3D_METASHAPE_PYTHON not set)"}')
+            ok, detail = ps.license_ok(python)
+            self.post(self.log, f'license: {detail}')
+            if not ok:
+                raise RuntimeError(detail)
+            self.post(self.log, f'hashing and verifying photos in {photos} …')
+            manifest = ps.alignment_manifest(photos, paths.name)
+            ps.write_manifest(paths.align_manifest, manifest)
+            self.post(self.log, f'manifest {paths.align_manifest}: {manifest["image_count"]} images, '
+                                f'{manifest["experiment_id"]}')
+            self.run_watched('align', ps.watched_command(python, paths.align_manifest, photos, paths.align_run,
+                                                         ps.ALIGN_LIMITS), paths.align_run, self.align_done)
+        self.start('align', job)
+
+    def run_watched(self, key, cmd, run_dir, on_done):
+        """Worker thread: run a watched command, then hand the outcome to on_done on the main thread."""
+        wp = ps.WatchedProcess(cmd, run_dir, lambda line: self.post(self.log, line))
+        self.post(self.set_proc, wp)
+        self.post(self.log, 'command: ' + ' '.join(cmd))
+        code = wp.run()
+        state, detail = ps.run_outcome(run_dir)
+        if wp.cancelled:
+            state, detail = 'cancelled', f'stopped by Cancel; watchdog exit {code}; outputs kept in {run_dir}'
+        self.post(on_done, key, run_dir, state, detail)
+
+    def set_proc(self, wp):
+        self.proc = wp
+        self.refresh_buttons()
+
+    def align_done(self, key, run_dir, state, detail):
+        self.finish(key, state, detail, show_error=state == 'failed')
+        if (run_dir / 'cameras.csv').exists():   # failed alignments still write their camera table
+            self.run = run_dir
+            self.where.config(text=str(run_dir))
+            self.show_coverage()
+        self.refresh_buttons()
+
+    def show_coverage(self):
         try:
-            for f in [folder] + ([reference] if reference else []):
-                if not (f / 'cameras.csv').exists():
-                    raise FileNotFoundError(f'No cameras.csv in {f}')
-            cov = (compare(folder / 'cameras.csv', reference / 'cameras.csv') if reference
-                   else analyze(folder / 'cameras.csv'))
-            self.draw(cov, folder, reference)
-        except Exception as exc:  # show any failure, keep the window and the previous view alive
-            messagebox.showerror('Could not load run', f'{type(exc).__name__}: {exc}')
+            cams, ref, note = self.run / 'cameras.csv', self.reference, ''
+            try:
+                cov = compare(cams, ref / 'cameras.csv') if ref else analyze(cams)
+            except ValueError as exc:
+                if ref is None or 'share fewer than 3' not in str(exc):
+                    raise
+                note = f' [reference {ref.name} shares no cameras with this run; shown without it]'
+                self.log(f'coverage: {exc}; showing this run in its own frame')
+                cov, ref = analyze(cams), None
+            cov.summary += note
+            self.draw(cov, self.run, ref)
+        except Exception as exc:
+            self.set_status('coverage', 'failed')
+            self.error('Coverage view failed', exc)
             return
-        self.run, self.reference = folder, reference
-        self.path_label.config(text=str(folder) + (f'   vs reference {reference.name}' if reference else ''))
+        self.where.config(text=str(self.run) + (f'   vs reference {self.reference}' if self.reference else ''))
         self.summary.config(text=cov.summary)
+        self.set_status('coverage', 'done')
+        self.log(f'coverage: {cov.summary}')
+        self.refresh_buttons()
+
+    def run_mesh(self):
+        python, align_run, photos = self.py_var.get().strip(), self.run, self.photos
+        if photos is None:   # opened an existing alignment run: the manifest has relative image paths
+            photos = self.ask_folder(f'Photo folder used for {align_run.name}')
+            photos = photos and self.check_folder('photo folder', photos)
+            if not photos:
+                return
+            self.photos = photos
+        paths = self.paths or ps.CapturePaths(align_run.parent, align_run.name)
+        mesh_run = paths.mesh_run
+        n = 1
+        while mesh_run.exists() or mesh_run.with_name(mesh_run.name + '-watchdog.log').exists():
+            n += 1
+            mesh_run = paths.output / f'{paths.name}-mesh-{n}'
+
+        def job():
+            ok, detail = ps.license_ok(python)
+            self.post(self.log, f'license: {detail}')
+            if not ok:
+                raise RuntimeError(detail)
+            align = json.loads((align_run / 'manifest.json').read_text())
+            manifest_path = paths.manifests / f'{mesh_run.name}.json'
+            ps.write_manifest(manifest_path, ps.mesh_manifest(align))
+            self.post(self.log, f'mesh manifest {manifest_path}, seeded from {align_run}')
+            self.run_watched('mesh', ps.watched_command(python, manifest_path, photos, mesh_run, ps.MESH_LIMITS,
+                                                        seed=align_run), mesh_run, self.mesh_done)
+        self.start('mesh', job)
+
+    def mesh_done(self, key, run_dir, state, detail):
+        self.finish(key, state, detail, show_error=state == 'failed')
+        if state == 'done' and (run_dir / 'raw-mesh.obj').exists():
+            self.mesh_run = run_dir
+            self.log(f'mesh: {run_dir / "raw-mesh.obj"}')
+        self.auto_score()
+
+    def run_score(self):
+        run, ref = self.mesh_run, self.reference
+
+        def job():
+            self.post(self.log, f'scoring {run} against {ref} (evaluator v3) …')
+            row = ps.score_run(run, ref)
+            self.post(self.score_done, row)
+        self.start('score', job)
+
+    def score_done(self, row):
+        text = ps.score_text(row)
+        self.score_label.config(text=f'Score vs {self.reference.name}: {text}')
+        self.finish('score', 'done', text)
+
+    # ------------------------------------------------------------ cancel / close
+
+    def cancel(self):
+        if self.proc is not None:
+            self.log(f'cancel requested: stopping the watchdog process group (pid {self.proc.proc and self.proc.proc.pid});'
+                     ' nothing is deleted')
+            self.proc.cancel()
+
+    def close(self):
+        if self.proc is not None:
+            if not messagebox.askyesno('Step running', 'A step is running. Cancel it and quit? Outputs are kept.'):
+                return
+            self.proc.cancel()
+        self.root.destroy()
+
+    # ------------------------------------------------------------ figure
 
     def draw(self, cov, folder, reference):
         self.fig.clear()
         ax, cm = self.fig.subplots(1, 2, gridspec_kw={'width_ratios': [1, 1.6]})
         ref = cov.reference
 
-        # 1. top-down layout (in the reference frame when comparing)
         Q, W = cov.positions, cov.views
         allQ = Q if ref is None else np.vstack([Q, ref.positions])
         r = np.linalg.norm(allQ[:, :2], axis=1).max()
@@ -118,7 +439,6 @@ class CoverageApp:
         ax.set_yticks([])
         self.fig.colorbar(sc, ax=ax, shrink=0.7, label='elevation (°)')
 
-        # 2. azimuth x elevation coverage map
         az, el, n = cov.az_edges, cov.el_edges, cov.counts
         vmax = max(n.max(), 4)
         cm.pcolormesh(az, el, n, cmap='Blues', vmin=0, vmax=vmax, edgecolors='white', linewidth=1)
@@ -152,6 +472,7 @@ class CoverageApp:
 
 def main():
     root = tk.Tk()
+    root.geometry('1320x950')
     CoverageApp(root)
     root.mainloop()
 

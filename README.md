@@ -400,7 +400,7 @@ this repository.
 
 Script-by-script descriptions: [scripts/README.md](scripts/README.md).
 
-Camera coverage viewer for one aligned run (top-down layout, azimuth × elevation map, missing regions): `python coverage_app.py`
+Capture check app (align a new photo set or open a run, camera coverage vs a reference, optional mesh and v3 score; alignment and meshing need Metashape): `python coverage_app.py`
 
 ### TensorBoard
 

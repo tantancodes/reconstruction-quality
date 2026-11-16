@@ -59,15 +59,16 @@ def read_dotenv(path):
     return values
 
 
-def load_saved(path=SETTINGS_FILE):
+def load_setting(key, path=SETTINGS_FILE):
     try:
-        return json.loads(Path(path).read_text()).get('metashape_python') or None
-    except (OSError, ValueError, AttributeError):
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError):
         return None
+    return data.get(key) or None if isinstance(data, dict) else None
 
 
-def save_choice(python, path=SETTINGS_FILE):
-    """Remember the interpreter; other keys in the settings file are kept."""
+def save_setting(key, value, path=SETTINGS_FILE):
+    """Store one value in the local settings file; other keys are kept."""
     path = Path(path)
     try:
         data = json.loads(path.read_text())
@@ -75,10 +76,19 @@ def save_choice(python, path=SETTINGS_FILE):
             data = {}
     except (OSError, ValueError):
         data = {}
-    data['metashape_python'] = str(python)
+    data[key] = value
     tmp = path.with_suffix('.tmp')
     tmp.write_text(json.dumps(data, indent=2) + '\n')
     tmp.replace(path)
+
+
+def load_saved(path=SETTINGS_FILE):
+    return load_setting('metashape_python', path)
+
+
+def save_choice(python, path=SETTINGS_FILE):
+    """Remember the interpreter; other keys in the settings file are kept."""
+    save_setting('metashape_python', str(python), path)
 
 
 def python_from_watchdog_log(path):

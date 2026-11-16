@@ -19,6 +19,11 @@ class _App(NS):
     pass
 
 
+def _say(text):
+    """Echo the stage lines real Metashape prints (bd3d_quality.progress parses them)."""
+    print(text, flush=True)
+
+
 app = _App(version='2.2.1', activated=os.environ.get('FAKE_METASHAPE_ACTIVATED', '1') == '1',
            gpu_mask=1, cpu_enable=False)
 for _name in ['TiePointsData', 'PointCloudData', 'PointCloudFormatPLY', 'DepthMapsData', 'Arbitrary',
@@ -47,31 +52,43 @@ class Chunk:
         self.transform = NS(matrix=np.eye(4))
 
     def addPhotos(self, paths):
+        _say('AddPhotos')
         self.cameras = [NS(label=Path(p).stem, transform=None, photo=NS(path=p), meta={}) for p in paths]
 
     def analyzeImages(self, cameras):
+        _say('AnalyzeImages')
         for c in cameras:
             c.meta['Image/Quality'] = '0.8'
 
     def matchPhotos(self, **kwargs):
-        pass
+        _say('MatchPhotos: downscale = 1')
+        for i in range(len(self.cameras)):
+            _say(f'[GPU] photo {i}: 40000 points')
 
-    def alignCameras(self):
+    def alignCameras(self, quiet=False):
+        if not quiet:
+            _say('AlignCameras: adaptive_fitting = off')
         time.sleep(float(os.environ.get('FAKE_METASHAPE_SLEEP', '0')))
         for i, c in enumerate(self.cameras):
             c.transform = _pose(i, len(self.cameras))
+            if not quiet:
+                _say(f'adding camera {i} ({i + 1} of {len(self.cameras)}), 1000 of 1000 used')
         self.tie_points = NS(points=[NS(valid=True, track_id=0)])
 
     def exportPointCloud(self, path, **kwargs):
         Path(path).write_text('ply\nend_header\n')
 
     def buildDepthMaps(self, **kwargs):
-        pass
+        _say('BuildDepthMaps: downscale = 8')
+        n = len(self.cameras)
+        for i in range(n):
+            _say(f'[GPU 1] group 1/1: estimating depth map for {i + 1}/{n} camera {i} (16 neighbs)...')
 
     def buildPointCloud(self):
         self.point_cloud = NS(point_count=100)
 
     def buildModel(self, **kwargs):
+        _say('BuildModel: surface_type = Arbitrary')
         self.model = NS(vertices=list(range(6)), faces=list(range(8)))
 
     def exportModel(self, path, **kwargs):
@@ -101,4 +118,4 @@ class Document:
         c = self.addChunk()
         c.addPhotos(state['photos'])
         if state['aligned']:
-            c.alignCameras()
+            c.alignCameras(quiet=True)

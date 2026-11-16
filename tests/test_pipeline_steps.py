@@ -224,6 +224,18 @@ def test_align_then_mesh_through_watchdog(dataset, tmp_path):
     assert res['limits']['RSS_bytes'] == 6 * 1024 ** 3 and res['limits']['swap_growth_MiB'] == 6144
     assert ps.score_run(paths.mesh_run, paths.mesh_run)['label_v3'] < 1e-9
 
+    # the console lines drive the progress view; the two runs are listed as one build with a mesh
+    from bd3d_quality.builds import find_builds
+    from bd3d_quality.progress import StageTracker
+    tracker = StageTracker(align['image_count'])
+    stages = [p for p in map(tracker.feed, lines) if p is not None]
+    names = list(dict.fromkeys(p.stage for p in stages))
+    assert names[:4] == ['Adding photos', 'Analysing image quality', 'Matching photos', 'Aligning cameras']
+    assert 'Computing depth maps' in names and 'Building the mesh' in names
+    assert any(p.stage == 'Aligning cameras' and p.fraction == 1.0 for p in stages)
+    (built,) = find_builds([tmp_path / 'out'])
+    assert built.name == 'dog' and built.has_mesh and [q.name for q in built.paths] == ['dog-align', 'dog-mesh']
+
 
 def test_license_check_reports_missing_license(tmp_path):
     ok, why = ps.license_ok(fake_python(tmp_path, FAKE_METASHAPE_ACTIVATED=0))

@@ -36,11 +36,13 @@ except ImportError:  # not installed: use the source tree next to this file
 from bd3d_quality import builds as bl
 from bd3d_quality import metashape_locator as ml
 from bd3d_quality import pipeline_steps as ps
+from bd3d_quality import quality_model as qm
 from bd3d_quality.coverage import BAND_NAMES, analyze, compare, load_cameras
 from bd3d_quality.progress import Progress, StageTracker
 
 REPO = Path(__file__).resolve().parent
 DEFAULT_RUNS = REPO / 'runs' / 'app'
+QUALITY_MODELS = REPO / 'models' / 'quality-attention'   # experimental, gitignored
 STEPS = ['Photos', 'Compare', 'Align', 'Coverage', 'Mesh', 'Score']
 
 # look
@@ -49,6 +51,7 @@ TEXT, MUTED = '#1d1d1f', '#6e6e73'
 ACCENT, ACCENT_DARK, ACCENT_SOFT = '#0a66d8', '#0853ad', '#dbe8fb'
 OK, WARN, ERROR = '#2e7d32', '#a35c00', '#c62828'
 RED, GREY = '#e05a5a', '#c8c8c8'
+EXP_BG, EXP_BORDER, EXP_TAG = '#fffaf0', '#e3c27a', '#8a5a00'   # experimental box, never like a result
 
 
 def setup_style(root):
@@ -70,6 +73,7 @@ def setup_style(root):
                 lightcolor=BG, darkcolor=BG, focuscolor=ACCENT, troughcolor=SURFACE)
     s.configure('TFrame', background=BG)
     s.configure('Card.TFrame', background=SURFACE)
+    s.configure('Exp.TFrame', background=EXP_BG)
     for name, fg, f in [('TLabel', TEXT, 'body'), ('Muted', MUTED, 'body'), ('Small', MUTED, 'small'),
                         ('H1', TEXT, 'h1'), ('H2', TEXT, 'h2'), ('Big', TEXT, 'big'), ('Bold', TEXT, 'bold'),
                         ('Ok', OK, 'body'), ('Warn', WARN, 'body'), ('Error', ERROR, 'body'),
@@ -77,6 +81,8 @@ def setup_style(root):
         style = name if name == 'TLabel' else f'{name}.TLabel'
         s.configure(style, background=BG, foreground=fg, font=fonts[f])
         s.configure('Card.' + style, background=SURFACE, foreground=fg, font=fonts[f])
+        s.configure('Exp.' + style, background=EXP_BG, foreground=fg, font=fonts[f])
+    s.configure('Exp.Tag.TLabel', background=EXP_BG, foreground=EXP_TAG, font=fonts['small'])
     s.configure('TButton', background=SURFACE, foreground=TEXT, bordercolor=BORDER, lightcolor=SURFACE,
                 darkcolor=SURFACE, padding=(16, 8), font=fonts['body'])
     s.map('TButton', background=[('disabled', BG), ('pressed', '#e2e5ea'), ('active', '#e9ebef')],
@@ -1096,6 +1102,8 @@ class CaptureApp:
             self.log(traceback.format_exc().rstrip())
             self.label(master, f'The coverage could not be computed: {exc}', 'Error.TLabel', pady=(20, 0))
             return
+        if Path(run_dir, 'cameras.csv').is_file():
+            self.prediction_box(master, Path(run_dir) / 'cameras.csv', name)
         bottom = ttk.Frame(master)
         bottom.pack(fill='x', side='bottom', pady=(6, 0))
         text = cov.summary + (f' {note}' if note else '')
@@ -1108,6 +1116,53 @@ class CaptureApp:
                    ).pack(side='right', anchor='n')
         canvas.get_tk_widget().pack(fill='both', expand=True, pady=(8, 0))
         self.log(f'coverage of {name}' + (f' vs {ref_name}' if ref_name else '') + f': {text}')
+
+    def prediction_box(self, master, cameras, name):
+        """EXPERIMENTAL predicted quality from the aligned cameras alone (no mesh or reference needed).
+        Its own bordered box under the coverage summary: a number with its spread across the 5 seed
+        models and the training caveat, never a verdict and never styled like a measured score."""
+        outer = tk.Frame(master, bg=EXP_BG, highlightthickness=1, highlightbackground=EXP_BORDER)
+        outer.pack(fill='x', side='bottom', pady=(10, 0))
+        box = ttk.Frame(outer, style='Exp.TFrame', padding=(14, 8))
+        box.pack(fill='x')
+        top = ttk.Frame(box, style='Exp.TFrame')
+        top.pack(fill='x')
+        ttk.Label(top, text='EXPERIMENTAL', style='Exp.Tag.TLabel').pack(side='left', anchor='n', padx=(0, 12))
+        line = ttk.Label(top, text='Predicted quality: working…', style='Exp.Muted.TLabel', wraplength=900,
+                         justify='left')
+        line.pack(side='left', anchor='w')
+        gen = self.gen
+
+        def show(p):
+            if self.gen != gen or not box.winfo_exists():
+                return
+            line.config(text=p.text, style='Exp.TLabel')
+            caveat = p.caption
+            if p.in_training:
+                caveat += '. This build was one of the training runs, so this is not a test of the model.'
+            ttk.Label(box, text=caveat, style='Exp.Small.TLabel', wraplength=1000, justify='left'
+                      ).pack(anchor='w', pady=(2, 0))
+            seeds = ', '.join(f'seed {s} {v:.4f}' for s, v in sorted(p.per_seed.items()))
+            self.log(f'experimental prediction for {name} ({p.cameras} cameras; {seeds}); '
+                     f'{p.caption}' + (f'; training run {p.in_training}' if p.in_training else ''))
+
+        def unavailable(why):
+            if self.gen == gen and box.winfo_exists():
+                line.config(text=f'Predicted quality: not available ({why}).')
+
+        def job():
+            try:
+                p = qm.predict_quality(cameras, QUALITY_MODELS)
+            except qm.ModelsMissing as exc:
+                self.post(self.log, f'experimental prediction: {exc}')
+                self.post(unavailable, 'the experimental models are not on this computer')
+                return
+            except ValueError as exc:
+                self.post(self.log, f'experimental prediction: {exc}')
+                self.post(unavailable, str(exc))
+                return
+            self.post(show, p)
+        self.background(job)
 
     def leave_coverage(self):
         self.show_step('Mesh')

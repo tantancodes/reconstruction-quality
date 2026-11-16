@@ -47,3 +47,6 @@ notebooks/.ipynb_checkpoints/
 
 # capture app local settings (Metashape interpreter)
 .coverage-app.json
+
+# experimental quality models for the capture app (rebuild: python scripts/build_quality_models.py)
+models/

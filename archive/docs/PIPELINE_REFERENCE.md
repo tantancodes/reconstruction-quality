@@ -1,7 +1,7 @@
 # Pipeline reference: CLI, provenance and safeguards
 
 Operational reference for the `bd3d-quality` package (moved here from the project README on
-2026-11-10). For the research question, findings and figures see the [README](../README.md).
+2026-11-10). For the research question, findings and figures see the [README](../../README.md).
 
 ## Setup on macOS
 
@@ -22,7 +22,7 @@ pytest. `requirements-lock.txt` is a full freeze of that environment, so tests, 
 figures all run with the same versions. It is interpreter-specific, not a cross-platform
 lock: for another interpreter use the version ranges in `pyproject.toml` and record a fresh
 freeze. Metashape is separately installed and licensed. Do not rename wheels to bypass
-Python compatibility checks. See [Metashape setup](METASHAPE.md).
+Python compatibility checks. See [Metashape setup](../../docs/METASHAPE.md).
 
 ## Workflow
 
@@ -90,7 +90,7 @@ The earlier rigid `geometry compare` evaluator, the image `features` commands an
 - `resource_monitor.py`: the watchdog that runs each reconstruction.
 - `evaluation.py`: geometry evaluator v3 (mesh loading, sampling, registration, labels).
 - `cli.py`: the `manifest` and `reconstruct` commands.
-- `scripts/`: manifests, driver, scoring, models and figures ([index](../scripts/README.md)).
+- `scripts/`: manifests, driver, scoring, models and figures ([index](../../scripts/README.md)).
 - `tests/`: provenance, corruption, reconstruction mocks, watchdog, driver, v3 scorer and label tables.
 - `config/`: fully specified reconstruction profiles.
 - `archive/`: earlier-phase package (`bd3d_legacy`), its tests, examples and documents.
@@ -116,11 +116,11 @@ still vary across hardware or repeated runs; identity does not imply determinist
 numerical reconstruction.
 
 Read [audit](AUDIT.md), [validation record](VALIDATION.md),
-[feature definitions](../archive/docs/FEATURE_DICTIONARY.md), [attribution](ATTRIBUTION.md),
+[feature definitions](FEATURE_DICTIONARY.md), [attribution](../../docs/ATTRIBUTION.md),
 and [future statistical/ML work](../FUTURE_ML.md). Optional plots and mesh
 postprocessing are deliberately outside the initial implementation. Never commit
 private photos, archaeological geometry, credentials, environments or generated
-research results. Publication instructions are in [GitHub setup](../archive/docs/PUBLISHING.md).
+research results. Publication instructions are in [GitHub setup](PUBLISHING.md).
 
 ## Resource-safe reconstruction and controlled pilot
 
@@ -149,7 +149,7 @@ execution, and runs at most three conditions sequentially. Geometry export check
 use `archive/examples/validate_exports.py` in an interpreter with Open3D installed; Open3D
 is not a package dependency. The current pipeline driver is `scripts/run_watched.py`.
 
-See [controlled experiment protocol](../archive/docs/CONTROLLED_EXPERIMENTS.md) for settings,
+See [controlled experiment protocol](CONTROLLED_EXPERIMENTS.md) for settings,
 selection strategies, cancellation rules, pre-execution budgets and scientific
 limitations. The original 38-image historical subset remains unresolved; newly
 sampled 38-image conditions are explicitly distinct.

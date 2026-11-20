@@ -6,7 +6,7 @@ check that the recomputed label equals results/pahma-5-613-v2/labels-all.csv exa
 Steps 3-6 rerun src/bd3d_quality/evaluation.py on the two local raw-mesh.obj files (not in
 git; their SHA-256 is checked against the label files first).
 
-Writes notebooks/pipeline_walkthrough.ipynb. Like build_results_notebook.py, it never
+Writes notebooks/01_pipeline_walkthrough.ipynb. Like build_results_notebook.py, it never
 overwrites: an existing output gets a numbered sibling. Exits non-zero, without writing,
 if any cell fails.
 
@@ -21,7 +21,7 @@ import nbformat
 from build_results_notebook import execute
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT = REPO / 'notebooks' / 'pipeline_walkthrough.ipynb'
+DEFAULT = REPO / 'notebooks' / '01_pipeline_walkthrough.ipynb'
 
 MD, CODE = 'md', 'code'
 CELLS = [

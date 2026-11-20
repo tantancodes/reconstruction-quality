@@ -23,7 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]   # archive/scripts/ -> repository root
 HOME = r'(?:/Users/[^/\s"\'<>`\\]+|~|<LOCAL>)'
 RULES = [
     (re.compile(r'/Users/[^/\s"\'<>`\\]+/Documents/bd3d-reconstruction-quality/'), ''),

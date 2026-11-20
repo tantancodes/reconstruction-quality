@@ -1,6 +1,6 @@
 """Measured camera coverage of one aligned run (cameras.csv), before dense reconstruction.
 
-The frame follows notebooks/pipeline_walkthrough.ipynb: the centre is the point closest to all
+The frame follows notebooks/01_pipeline_walkthrough.ipynb: the centre is the point closest to all
 viewing rays and "up" is the direction in which the camera directions spread least (the normal of
 the camera rings), signed toward the cameras, then refined so a gap in one ring does not tilt it
 (see camera_frame). Azimuth is measured about up, counter-clockwise seen

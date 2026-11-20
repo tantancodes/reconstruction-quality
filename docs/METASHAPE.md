@@ -9,7 +9,7 @@ that environment with `python -m pip install -e .` and the licensed Metashape wh
 according to [Agisoft installation instructions](https://agisoft.freshdesk.com/support/solutions/articles/31000148930-how-to-install-metashape-stand-alone-python-module).
 Do not install ML extras or bypass licensing. The local 3.14 development environment
 does not include Metashape. An existing read-only research interpreter has version
-2.2.1; license availability varied during this implementation. See VALIDATION.md.
+2.2.1; license availability varied during this implementation. See the [2026-11-06 validation record](../archive/docs/VALIDATION.md).
 
 Set profile in a new manifest configuration: `alignment`, `dense`, or `mesh`.
 Dense runs build depth maps then point cloud. Mesh runs additionally build an
@@ -40,5 +40,5 @@ support describes that convention in its [decimation guidance](https://www.agiso
 The installed 2.2.1 method docstrings were inspected for downscale, max_neighbors,
 work-item and work-group controls. The CPU worker count could not be enforced by
 OpenMP variables alone, so the watchdog records that request and independently
-limits process run duty cycle. See [CONTROLLED_EXPERIMENTS.md](../archive/docs/CONTROLLED_EXPERIMENTS.md) and [VALIDATION.md](VALIDATION.md)
+limits process run duty cycle. See [CONTROLLED_EXPERIMENTS.md](../archive/docs/CONTROLLED_EXPERIMENTS.md) and [VALIDATION.md](../archive/docs/VALIDATION.md)
 for actual attempts and resource stops; these are not successful dense/mesh runs.

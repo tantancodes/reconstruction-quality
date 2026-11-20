@@ -1,6 +1,6 @@
 """Build and execute the results notebook (loads saved CSVs/logs only; no training, no Metashape).
 
-Writes notebooks/results.ipynb (paths inside are relative to the repository, so it works
+Writes notebooks/02_results.ipynb (paths inside are relative to the repository, so it works
 from any checkout). Never overwrites: an existing output gets a numbered sibling instead.
 Cells that need local-only data (TensorBoard logs in runs/, camera tables of ignored run
 folders) fall back to the exported PNGs in docs/figures/ when that data is absent. Executed in-process with jupyter_client (nbconvert is not installed).
@@ -16,7 +16,7 @@ import nbformat
 from jupyter_client.manager import KernelManager
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT = REPO / 'notebooks' / 'results.ipynb'
+DEFAULT = REPO / 'notebooks' / '02_results.ipynb'
 
 MD, CODE = 'md', 'code'
 CELLS = [

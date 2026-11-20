@@ -53,3 +53,11 @@ models/
 
 # web viewer exports (rebuild: python scripts/export_viewer.py, see viewer/README.md)
 viewer/data/
+
+# raw run logs and uncited status records stay local (the cited chain-status.json is tracked)
+results/**/*.log
+results/*.log
+results/overnight-2026-11-10/continue-status.json
+
+# personal notes
+notebooks/remember

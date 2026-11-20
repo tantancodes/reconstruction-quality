@@ -1,68 +1,37 @@
 # scripts/
 
-Research scripts, grouped by pipeline stage. Each script's docstring gives its exact command
-line. Scripts marked **Metashape** need the separately licensed Metashape Python module
-(set `BD3D_METASHAPE_PYTHON` to an interpreter that can `import Metashape`). Everything else
-runs in the one pinned project environment (`requirements-lock.txt`), with no external
-repositories needed. The core path is marked ★; the rest is the evaluation audit or utilities.
+The scripts that reproduce the current results, in run order. Each docstring gives the exact
+command line. Steps 2 and 6 need Metashape (set `BD3D_METASHAPE_PYTHON`, see
+[docs/METASHAPE.md](../docs/METASHAPE.md)). Steps 3–5 and 7–9 need the photos or the local build
+folders. Steps 11–16 run from files in git. The commands for the coffin builds are in
+[docs/PIPELINE.md](../docs/PIPELINE.md).
 
-## 1. Image selection (manifests)
+| step | script | what it does | inputs | outputs |
+|---|---|---|---|---|
+| 1 | `bd3d-quality manifest create` (package CLI) | manifest of a full capture | photos, `experiments/*/config.json` | parent manifest in `experiments/` |
+| 2 | `run_watched.py` | runs manifests in order in Metashape under the resource watchdog; writes the viewer export after each build | manifests, photos | one build folder per manifest, watchdog records, `viewer/data/<build>/` |
+| 3 | `build_image_quality_cache.py` | per-photo image quality from a finished reference, reused by its subsets | reference build | `image_quality_cache.csv` |
+| 4 | `series_split_from_poses.py` | assigns reference cameras to capture series by elevation and compares with the split at capture-time gaps | reference `cameras.csv`, photos | `series_split/series.csv` |
+| 5 | `make_gpu_pilot_manifests.py` | dog manifests: 50-photo reference, `random10`, `side40` | dog parent manifest | `experiments/gpu-pilot-d8/` |
+| 5 | `make_pahma_manifests.py` | coffin candidate manifests: `drop_s2`, `drop_s3`, `side40_s1`, random subsets | parent manifest, `series.csv` | `experiments/pahma-5-613/candidates/` |
+| 6 | `run_watched.py` | the candidate builds | candidate manifests, photos, cache | candidate build folders |
+| 7 | `score_runs_v3.py` | evaluator v3 for candidate builds against a reference | build folders (`raw-mesh.obj`, `cameras.csv`, `run.json`) | `geometry-v3*/labels_v3.csv`, `settings.json` |
+| 8 | `combine_labels.py` | one label table per object, with the missing/extra breakdown | `labels_v3.csv`, build folders | `labels.csv`, `labels-all.csv` |
+| 9 | `rescore_camera_init_icp.py` | evaluation audit: evaluator v3 on the 16 historical dog builds | historical label table, reports and meshes (local) | `results/geometry-labels-v3/` |
+| 10 | `recheck_bd3d_ml_claims.py` | recomputes three earlier `bd3d-ml` claims with v1 and v3 labels | Aphoma modelling table (local), `geometry-labels-v3/labels_v3.csv` | `results/bd3d-ml-claims-recheck/` |
+| 11 | `synthetic_coverage_gap.py` | synthetic benchmark: mean, Ridge, PointNet, attention | none | `results/synthetic-coverage-gap/`, `runs/synthetic/` |
+| 12 | `pilot_set_models.py` | real-data pilot, leave one build out and leave one object out | label tables, each build's `cameras.csv` | `results/pilot-real-v3-all/` |
+| 13 | `build_quality_models.py` | the capture app's experimental quality models, trained on all pilot builds | as step 12 | `models/quality-attention/` (not in git) |
+| 14 | `make_figures.py` | every figure in `docs/figures/` and the derived tables | `results/` files in git | `docs/figures/*.png`, `docs/figures/data/` |
+| 15 | `build_results_notebook.py` | builds and runs the results notebook | as step 14 | `notebooks/02_results.ipynb` |
+| 15 | `build_walkthrough_notebook.py` | builds and runs the walkthrough of one coffin build, manifest to label | `side40_s1` and `ref145b` meshes (local) | `notebooks/01_pipeline_walkthrough.ipynb` |
+| 16 | `export_viewer.py` | viewer export of several builds against one reference | build folders | `viewer/data/<object>/` |
 
-| script | what it does |
-|---|---|
-| ★ `make_gpu_pilot_manifests.py` | ARF dog GPU pilot: 50-image reference, `random10`, `side40` (40% contiguous side removed). |
-| ★ `make_dog_failure_manifests.py` | More ARF dog cases at the same settings: `random15` ×2, `random20` ×2, `side25`. |
-| ★ `series_split_from_poses.py` | Assigns reference cameras to capture series by elevation (pose-based k-means) and compares that with the split at EXIF time gaps. Gaps that would leave a series of fewer than `--min-series-size` photos are ignored. |
-| ★ `make_pahma_manifests.py` | PAHMA 5-613 coffin candidates from a confirmed series split: `drop_s3`, `drop_s2`, `random30` ×2, `side40_s1`, `random60`. |
-| `historical_subset_manifests.py` | Rebuilds the 16 historical ARF dog subsets as current-format manifests. |
+`notebooks/03_attention_maps.ipynb` has no builder; it was written by hand and is kept with its
+outputs.
 
-## 2. Reconstruction (Metashape)
-
-| script | what it does |
-|---|---|
-| ★ `run_watched.py` | **Metashape.** General driver: runs manifests in sequence under the resource watchdog. Checks the license before each job and retries license denials. Records alignment failures as results and continues; stops on any watchdog or resource stop. |
-| ★ `build_image_quality_cache.py` | Per-image quality from a finished reference run (one `analyzeImages` pass), reused by subset runs via `reconstruct --image-quality-cache`. |
-
-## 3. Camera tables from historical projects
-
-| script | what it does |
-|---|---|
-| `historical_camera_tables.py` | **Metashape.** Opens copies of the 16 historical projects read-only and writes `cameras.csv` per run. |
-| `historical_reference_cameras.py` | **Metashape.** The same for the historical 50-image reference. |
-| `smoke_check_camera_table.py` | Sanity checks on a run's `cameras.csv` (aligned fraction, missing reasons, plots). |
-
-## 4. Evaluation (labels)
-
-| script | what it does |
-|---|---|
-| `rescore_camera_init_icp.py` | Evaluation audit: evaluator v3 applied to the 16 historical runs, producing `results/geometry-labels-v3`. Needs the historical label CSV and reports (`--historical`) and the historical meshes they point to (local). |
-| ★ `score_runs_v3.py` | Evaluator v3 (`src/bd3d_quality/evaluation.py`) for run folders (`cameras.csv`, `raw-mesh.obj`, `run.json`) against a reference run. |
-| ★ `combine_labels.py` | One `labels.csv` per artifact, with missing-surface (reference→candidate) and extra-surface (candidate→reference) breakdown. |
-| `recheck_bd3d_ml_claims.py` | Recomputes three earlier claims from the Aphoma `bd3d-ml` branch with v3 labels. |
-
-## 5. Models
-
-| script | what it does |
-|---|---|
-| ★ `synthetic_coverage_gap.py` | Synthetic benchmark comparing mean, Ridge, PointNet and attention. Two conditions, 5 seeds, TensorBoard logs in `runs/synthetic`. |
-| ★ `pilot_set_models.py` | Real-data pilot comparing mean, reprojection RMSE, Ridge, PointNet and attention. Evaluated leave-one-run-out and leave-one-artifact-out. |
-
-## 6. Figures and notebook
-
-| script | what it does |
-|---|---|
-| ★ `make_figures.py` | Every README figure (`docs/figures/*.png`), plus derived tables and `stats.json` in `docs/figures/data/`. |
-| ★ `build_results_notebook.py` | Builds and executes `notebooks/results.ipynb` from saved results only. |
-| `build_walkthrough_notebook.py` | Builds and executes `notebooks/pipeline_walkthrough.ipynb`: one coffin run (`side40_s1` vs `ref145b`) from manifest to label, checked exactly against `labels-all.csv`. Needs the two local `raw-mesh.obj` files. |
-
-## Archived
-
-`archive/scripts/` holds `rescore_similarity_icp.py` (evaluator v2, superseded by v3),
-`run_gpu_pilot.py` (superseded by `run_watched.py`) and `overnight_chain.py` /
-`overnight_continue.py` (the record of the unattended 2026-11-10 run). See `archive/README.md`.
-
-## Utilities
-
-| script | what it does |
-|---|---|
-| `scrub_paths.py` | Lists, or with `--apply` rewrites, local absolute paths in tracked files (repo paths become repo-relative, other local paths become placeholders). |
+Historical and one-off scripts are in `archive/scripts/`: the camera-table extraction from the
+historical Metashape projects (`historical_*`), the manifests for the extra dog builds in
+`experiments/gpu-pilot-d8-ext/` (`make_dog_failure_manifests.py`), the path scrubber
+(`scrub_paths.py`), a camera-table sanity check (`smoke_check_camera_table.py`), evaluator v2,
+the first pilot driver and the unattended 2026-11-10 run. See [archive/README.md](../archive/README.md).

@@ -1508,7 +1508,7 @@ class CaptureApp:
             state['selected'] = b
             for key, mark in state['marks'].items():
                 mark.config(bg=INK if b is not None and key == b.key else SURFACE)
-            if on_select:
+            if on_select and b is not None:   # rendering with nothing selected is not a selection
                 on_select(b)
 
         def render():

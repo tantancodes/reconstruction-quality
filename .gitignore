@@ -61,3 +61,7 @@ results/overnight-2026-11-10/continue-status.json
 
 # personal notes
 notebooks/remember
+
+# demo recordings (the full video is uploaded to GitHub, not committed)
+*.mp4
+*.mov

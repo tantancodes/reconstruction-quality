@@ -25,6 +25,7 @@ folders. Steps 11–16 run from files in git. The commands for the coffin builds
 | 14 | `make_figures.py` | every figure in `docs/figures/` and the derived tables | `results/` files in git | `docs/figures/*.png`, `docs/figures/data/` |
 | 15 | `build_results_notebook.py` | builds and runs the results notebook | as step 14 | `notebooks/02_results.ipynb` |
 | 15 | `build_walkthrough_notebook.py` | builds and runs the walkthrough of one coffin build, manifest to label | `side40_s1` and `ref145b` meshes (local) | `notebooks/01_pipeline_walkthrough.ipynb` |
+| 15 | `export_notebook_figures.py` | saves the walkthrough notebook's figures for the README, without re-running it | `notebooks/01_pipeline_walkthrough.ipynb` | `docs/figures/walkthrough_*.png` |
 | 16 | `export_viewer.py` | viewer export of several builds against one reference | build folders | `viewer/data/<object>/` |
 
 `notebooks/03_attention_maps.ipynb` has no builder; it was written by hand and is kept with its

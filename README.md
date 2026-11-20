@@ -62,6 +62,33 @@ reference, it also shows the surface the reference has and the build is missing,
 registration as the labels. The pipeline and the app write its data after each build
 ([viewer/README.md](viewer/README.md)).
 
+## How one build is scored
+
+[`notebooks/01_pipeline_walkthrough.ipynb`](notebooks/01_pipeline_walkthrough.ipynb) follows one
+coffin build, `side40_s1`, from its manifest to its label. It recomputes each value step by step and
+compares it with the stored row in `results/pahma-5-613-v2/labels-all.csv`; all 14 columns match
+exactly. The figures below are its outputs (`scripts/export_notebook_figures.py`).
+
+**Cameras.** The build keeps 122 of the 145 photos: 23 consecutive wall-level photos are removed,
+a sector from 156° to 280° in azimuth.
+
+![Reference cameras top-down and as azimuth against elevation, with the 23 removed cameras in red](docs/figures/walkthrough_cameras.png)
+
+**Registration.** A build without markers comes out of Metashape in its own frame (left). Fitting
+the build's cameras to the reference cameras of the same photos does most of the alignment
+(middle), and ICP on the two surfaces makes a small final correction (right). v1 started ICP
+without the camera fit, which is the failure described in the evaluation audit below.
+
+![Surface samples of the build and the reference: in the build's own frame, after the camera fit, and after ICP](docs/figures/walkthrough_registration.png)
+
+**Distances.** Every reference sample is matched to the nearest point on the build (missing
+surface), and every build sample to the reference (extra surface). The missing distances are
+largest on the side where the cameras were removed (right panel). Missing RMSE is 0.0112 of the
+reference diagonal and extra RMSE is 0.0015, so the label, the root mean square of the two, is
+0.0080, and 98% of the squared error is missing surface.
+
+![Histograms of missing and extra distances, and the missing distance mapped onto the reference with the removed cameras](docs/figures/walkthrough_distances.png)
+
 ## Findings
 
 The long versions, with every table and figure, are in [docs/FINDINGS.md](docs/FINDINGS.md).

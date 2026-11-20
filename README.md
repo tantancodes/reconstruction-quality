@@ -6,7 +6,9 @@ slow dense reconstruction.
 
 ![demo](docs/figures/demo.gif)
 
-Full video: [VIDEO_URL](VIDEO_URL)
+Full video: [VIDEO_URL](
+https://github.com/user-attachments/assets/d43268a1-7726-4a56-b98a-1c1579366a4c
+)
 
 ## The problem
 

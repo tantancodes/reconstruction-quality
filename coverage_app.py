@@ -13,6 +13,7 @@ error box happens on the main thread (required on macOS).
 import json
 import os
 import queue
+import re
 import sys
 import threading
 import time
@@ -23,10 +24,10 @@ from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
+import matplotlib
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
 from matplotlib.patches import Patch, Rectangle
 
 try:
@@ -37,6 +38,7 @@ from bd3d_quality import builds as bl
 from bd3d_quality import metashape_locator as ml
 from bd3d_quality import pipeline_steps as ps
 from bd3d_quality import quality_model as qm
+from bd3d_quality import theme as th
 from bd3d_quality import viewer_export as vx
 from bd3d_quality.coverage import BAND_NAMES, analyze, compare, load_cameras
 from bd3d_quality.progress import Progress, StageTracker
@@ -45,69 +47,65 @@ REPO = Path(__file__).resolve().parent
 DEFAULT_RUNS = REPO / 'runs' / 'app'
 QUALITY_MODELS = REPO / 'models' / 'quality-attention'   # experimental, gitignored
 STEPS = ['Photos', 'Compare', 'Align', 'Coverage', 'Mesh', 'Score']
+STEP_NAMES = {'Compare': 'Reference'}   # shown name; the key stays
 
-# look
-BG, SURFACE, BORDER = '#ffffff', '#f3f4f6', '#d9dce1'
-TEXT, MUTED = '#1d1d1f', '#6e6e73'
-ACCENT, ACCENT_DARK, ACCENT_SOFT = '#0a66d8', '#0853ad', '#dbe8fb'
-OK, WARN, ERROR = '#2e7d32', '#a35c00', '#c62828'
-RED, GREY = '#e05a5a', '#c8c8c8'
-EXP_BG, EXP_BORDER, EXP_TAG = '#fffaf0', '#e3c27a', '#8a5a00'   # experimental box, never like a result
+# look: every value comes from viewer/tokens.css (bd3d_quality.theme), shared with the web viewer
+BG, SURFACE, BORDER, PANEL = th.PAGE, th.CARD, th.LINE, th.PANEL
+TEXT, MUTED, INK = th.TEXT, th.TEXT_2, th.INK
+ACCENT, ACCENT_DARK, ACCENT_SOFT = th.INK, '#2a2a28', th.NEUTRAL_SOFT
+OK, WARN, ERROR = th.GREEN, th.AMBER, th.RED
+RED, GREY = th.RED, '#dcdad4'
+EXP_BG, EXP_BORDER, EXP_TAG = th.AMBER_SOFT, th.AMBER_SOFT, th.AMBER   # experimental: caution, never like a result
+matplotlib.rcParams.update({'font.family': ['System Font', 'Helvetica Neue', 'DejaVu Sans'], 'font.size': 10,
+                            'text.color': TEXT, 'axes.labelcolor': MUTED, 'xtick.color': MUTED,
+                            'ytick.color': MUTED, 'axes.edgecolor': BORDER, 'axes.titlecolor': INK})
 
 
 def setup_style(root):
     family = tkfont.nametofont('TkDefaultFont').actual('family')
-    fonts = {
-        'body': tkfont.Font(family=family, size=15),
-        'small': tkfont.Font(family=family, size=13),
-        'bold': tkfont.Font(family=family, size=15, weight='bold'),
-        'big': tkfont.Font(family=family, size=18),
-        'h2': tkfont.Font(family=family, size=19, weight='bold'),
-        'h1': tkfont.Font(family=family, size=25, weight='bold'),
-        'huge': tkfont.Font(family=family, size=20, weight='bold'),
-        'mono': tkfont.Font(family='Menlo', size=11),
-    }
+
+    def font(size, weight='normal'):
+        return tkfont.Font(family=family, size=size, weight=weight)
+    fonts = {'body': font(14), 'small': font(12), 'bold': font(14, 'bold'), 'big': font(16),
+             'h2': font(19, 'bold'), 'h1': font(26, 'bold'), 'stat': font(34, 'bold'), 'tag': font(11, 'bold'),
+             'mono': tkfont.Font(family='Menlo', size=11)}
     root.configure(bg=BG)
     s = ttk.Style(root)
     s.theme_use('clam')
     s.configure('.', background=BG, foreground=TEXT, font=fonts['body'], bordercolor=BORDER,
-                lightcolor=BG, darkcolor=BG, focuscolor=ACCENT, troughcolor=SURFACE)
-    s.configure('TFrame', background=BG)
-    s.configure('Card.TFrame', background=SURFACE)
-    s.configure('Exp.TFrame', background=EXP_BG)
-    for name, fg, f in [('TLabel', TEXT, 'body'), ('Muted', MUTED, 'body'), ('Small', MUTED, 'small'),
-                        ('H1', TEXT, 'h1'), ('H2', TEXT, 'h2'), ('Big', TEXT, 'big'), ('Bold', TEXT, 'bold'),
-                        ('Ok', OK, 'body'), ('Warn', WARN, 'body'), ('Error', ERROR, 'body'),
-                        ('StepNow', ACCENT, 'bold'), ('StepDone', OK, 'body'), ('StepTodo', MUTED, 'body')]:
-        style = name if name == 'TLabel' else f'{name}.TLabel'
-        s.configure(style, background=BG, foreground=fg, font=fonts[f])
-        s.configure('Card.' + style, background=SURFACE, foreground=fg, font=fonts[f])
-        s.configure('Exp.' + style, background=EXP_BG, foreground=fg, font=fonts[f])
-    s.configure('Exp.Tag.TLabel', background=EXP_BG, foreground=EXP_TAG, font=fonts['small'])
-    s.configure('TButton', background=SURFACE, foreground=TEXT, bordercolor=BORDER, lightcolor=SURFACE,
-                darkcolor=SURFACE, padding=(16, 8), font=fonts['body'])
-    s.map('TButton', background=[('disabled', BG), ('pressed', '#e2e5ea'), ('active', '#e9ebef')],
-          foreground=[('disabled', '#b0b3b8')])
-    s.configure('Accent.TButton', background=ACCENT, foreground='white', bordercolor=ACCENT,
-                lightcolor=ACCENT, darkcolor=ACCENT)
-    s.map('Accent.TButton', background=[('disabled', '#a9c4ec'), ('pressed', ACCENT_DARK), ('active', ACCENT_DARK)],
-          foreground=[('disabled', 'white')], bordercolor=[('disabled', '#a9c4ec')],
-          lightcolor=[('disabled', '#a9c4ec')], darkcolor=[('disabled', '#a9c4ec')])
-    s.configure('Huge.TButton', padding=(36, 34), font=fonts['huge'], background=SURFACE)
-    s.configure('Start.TButton', padding=(48, 16), font=fonts['huge'])
-    s.configure('Link.TButton', background=BG, foreground=ACCENT, bordercolor=BG, lightcolor=BG, darkcolor=BG,
-                padding=(4, 2), font=fonts['body'])
-    s.map('Link.TButton', background=[('active', BG), ('pressed', BG)],
-          foreground=[('disabled', '#b0b3b8'), ('active', ACCENT_DARK)])
-    s.configure('Treeview', background='white', fieldbackground='white', foreground=TEXT, rowheight=34,
-                font=fonts['body'], bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER)
-    s.map('Treeview', background=[('selected', ACCENT_SOFT)], foreground=[('selected', TEXT)])
-    s.configure('Treeview.Heading', background=SURFACE, foreground=MUTED, font=fonts['small'], relief='flat',
-                padding=(8, 6), bordercolor=BORDER, lightcolor=SURFACE, darkcolor=SURFACE)
-    s.map('Treeview.Heading', background=[('active', '#e9ebef')])
-    s.configure('Horizontal.TProgressbar', background=ACCENT, troughcolor=SURFACE, bordercolor=SURFACE,
-                lightcolor=ACCENT, darkcolor=ACCENT, thickness=16)
-    s.configure('TCombobox', padding=6, arrowsize=16)
+                lightcolor=BG, darkcolor=BG, focuscolor=INK, troughcolor=PANEL)
+    for name, bg in (('TFrame', BG), ('In.TFrame', SURFACE), ('OnPanel.TFrame', PANEL), ('Exp.TFrame', EXP_BG)):
+        s.configure(name, background=bg)
+    labels = [('TLabel', TEXT, 'body'), ('Muted', MUTED, 'body'), ('Small', MUTED, 'small'), ('H1', INK, 'h1'),
+              ('H2', INK, 'h2'), ('Big', TEXT, 'big'), ('Bold', INK, 'bold'), ('Stat', INK, 'stat'),
+              ('Ok', OK, 'body'), ('Warn', WARN, 'small'), ('Error', ERROR, 'body'),
+              ('StepNow', INK, 'bold'), ('StepDone', TEXT, 'body'), ('StepTodo', MUTED, 'body'), ('StepBad', ERROR, 'body')]
+    for prefix, bg in (('', BG), ('Card.', SURFACE), ('Panel.', PANEL), ('Exp.', EXP_BG)):
+        for name, fg, f in labels:
+            s.configure(prefix + (name if name == 'TLabel' else f'{name}.TLabel'), background=bg, foreground=fg,
+                        font=fonts[f])
+    s.configure('Exp.Tag.TLabel', background=EXP_BG, foreground=EXP_TAG, font=fonts['tag'])
+
+    th.install(s, root)                       # Card/Panel frames, Primary pill, Text buttons, Tag labels
+    for host in ('', 'Card.'):
+        s.configure(f'{host}Primary.TButton', font=fonts['bold'])
+        s.configure(f'{host}Text.TButton', font=fonts['body'])
+    s.layout('Panel.Text.TButton', th.TEXT_LAYOUT)
+    s.configure('Panel.Text.TButton', background=PANEL, foreground=INK, bordercolor=PANEL, lightcolor=PANEL,
+                darkcolor=PANEL, padding=(0, 6), relief='flat', font=fonts['body'], width=0, anchor='w')
+    s.map('Panel.Text.TButton', background=[('active', PANEL), ('pressed', PANEL)],
+          foreground=[('disabled', '#b9b7b1'), ('active', MUTED)])
+    s.configure('TButton', background=SURFACE, foreground=INK, bordercolor=BORDER, lightcolor=SURFACE,
+                darkcolor=SURFACE, padding=(14, 7), font=fonts['body'])
+    s.map('TButton', background=[('active', ACCENT_SOFT), ('pressed', ACCENT_SOFT)], foreground=[('disabled', '#b9b7b1')])
+    s.configure('Horizontal.TProgressbar', background=INK, troughcolor='#dddbd5', bordercolor='#dddbd5',
+                lightcolor=INK, darkcolor=INK, thickness=6)
+    s.configure('TCombobox', padding=6, arrowsize=14, fieldbackground=SURFACE, background=SURFACE,
+                bordercolor=BORDER, lightcolor=SURFACE, darkcolor=SURFACE, arrowcolor=MUTED)
+    s.map('TCombobox', fieldbackground=[('readonly', SURFACE)], background=[('readonly', SURFACE)])
+    s.configure('TEntry', fieldbackground=SURFACE, bordercolor=BORDER, lightcolor=SURFACE, darkcolor=SURFACE, padding=6)
+    s.configure('Vertical.TScrollbar', background=BG, troughcolor=BG, bordercolor=BG, arrowcolor=MUTED,
+                lightcolor=BG, darkcolor=BG)
     root.option_add('*TCombobox*Listbox.font', fonts['body'])
     return fonts
 
@@ -115,34 +113,40 @@ def setup_style(root):
 # ---------------------------------------------------------------- plain-language text
 
 def plain_outcome(state, detail):
-    """One plain sentence for a step outcome from pipeline_steps.run_outcome."""
+    """One short sentence for a step outcome from pipeline_steps.run_outcome."""
     if state == 'cancelled':
         return 'Cancelled. Nothing was deleted.'
     d = detail or ''
     if 'license' in d.lower():
-        return 'Metashape could not get a license. Check the VPN or the license server, then try again.'
+        return 'No Metashape license. Check the VPN or license server.'
     if d.startswith('watchdog stop'):
-        return ('Stopped by the safety limits to protect this computer '
-                f'({d.split(":", 1)[1].strip().replace("_", " ")}).')
+        return f'Stopped by the resource limits ({d.split(":", 1)[1].strip().replace("_", " ")}).'
     if 'alignment failed' in d:
-        return 'Too few cameras could be placed for a usable alignment.'
-    return 'Something went wrong. Open "Show details" below for the log.'
+        return 'Too few cameras aligned.'
+    return 'Failed. See the log.'
 
 
-def score_lines(row, ref_name):
-    """(headline, numbers, explanation, warning or '') for a v3 score row."""
+def quality(label):
+    """(text, tag kind) for a v3 label: the viewer's bands (under 1.2% good, under 2% fair)."""
+    return ('Good', 'good') if label < 0.012 else ('Fair', 'caution') if label < 0.02 else ('Poor', 'bad')
+
+
+def score_rows(row):
+    """[(name, value, tag kind or None)] for a v3 score row; distances are fractions of the reference diagonal."""
     y = row['label_v3']
-    headline = f'Score vs {ref_name}:  {y:.4f}   (lower is better)'
-    numbers = f'Missing {row["r2c_rmse_norm"]:.4f}  ·  Extra {row["c2r_rmse_norm"]:.4f}'
-    explanation = (f'The typical distance between the two surfaces, as a fraction of {ref_name}\'s size '
-                   f'(its bounding-box diagonal): {y:.4f} is about {y * 100:.2g} % of the object. '
-                   f'"Missing" measures parts of {ref_name} this mesh lacks or gets wrong; "extra" measures '
-                   f'surface this mesh has that {ref_name} does not.')
-    warning = ''
-    if row.get('qc_v3') != 'pass' or row.get('scale_check') == 'disagree':
-        warning = ('The two meshes lined up less well than usual '
-                   f'(fit check: {row.get("qc_v3")}, scale check: {row.get("scale_check")}); treat the number with care.')
-    return headline, numbers, explanation, warning
+    qc, scale = row.get('qc_v3'), row.get('scale_check')
+    return [('Geometric error', f'{y * 100:.2f}%', quality(y)),
+            ('Missing RMSE', f'{row["r2c_rmse_norm"] * 100:.2f}%', None),
+            ('Extra RMSE', f'{row["c2r_rmse_norm"] * 100:.2f}%', None),
+            ('Registration QC', None, (str(qc), 'good' if qc == 'pass' else 'bad')),
+            ('Scale check', None, (str(scale), 'good' if scale == 'agree' else 'caution'))]
+
+
+def _read_json(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 def aligned_count(run_dir):
@@ -156,84 +160,112 @@ def date_text(d):
 
 # ---------------------------------------------------------------- figures
 
-def draw_coverage(fig, cov, run_name, ref_name=None):
-    """Top view and azimuth x height map, with a legend (single build or vs a reference)."""
-    fig.clear()
-    ax, cm = fig.subplots(1, 2, gridspec_kw={'width_ratios': [1, 1.6]})
+def camera_states(cov):
+    """Positions (top view, x/y) of used, removed and failed cameras; same three states as the viewer.
+    Removed and failed are placed where the reference had them; failed with no reference has no place."""
+    used = cov.positions[:, :2]
     ref = cov.reference
-    Q, W = cov.positions, cov.views
-    allQ = Q if ref is None else np.vstack([Q, ref.positions])
-    r = np.linalg.norm(allQ[:, :2], axis=1).max()
-    if ref is not None:
-        ax.scatter(ref.positions[:, 0], ref.positions[:, 1], s=40, facecolors='none', edgecolors='0.6',
-                   linewidths=0.8, zorder=1, label=f'{ref_name} ({len(ref.labels)} cameras)')
-    sc = ax.scatter(Q[:, 0], Q[:, 1], c=cov.elevation, cmap='viridis', s=24, zorder=3,
-                    label=f'{run_name} ({len(cov.labels)} cameras)')
-    ax.quiver(Q[:, 0], Q[:, 1], W[:, 0], W[:, 1], color='0.5', width=0.003, scale=12, zorder=2)
-    ax.plot(0, 0, '+', color='k', ms=12)
-    ax.annotate('0°', (r * 1.08, 0), ha='left', va='center', color='0.4')
-    ax.set_title('Cameras seen from above', fontsize=12)
-    if cov.failed:
-        shown = ', '.join(cov.failed[:3]) + (' …' if len(cov.failed) > 3 else '')
-        ax.plot([], [], 'x', color='tab:red', label=f'{len(cov.failed)} not placed: {shown}')
+    if ref is None:
+        return used, np.empty((0, 2)), np.empty((0, 2)), len(cov.failed)
+    have, failed = set(cov.labels), set(cov.failed)
+    rem = [i for i, l in enumerate(ref.labels) if l not in have and l not in failed]
+    bad = [i for i, l in enumerate(ref.labels) if l in failed]
+    return used, ref.positions[rem, :2], ref.positions[bad, :2], len(cov.failed) - len(bad)
+
+
+def draw_coverage(fig, cov, run_name, ref_name=None):
+    """Top view and azimuth x height map (single build or vs a reference). Colour only means state:
+    grey = camera used, red = problem (failed to align, removed, too few cameras in a cell)."""
+    fig.clear()
+    fig.set_facecolor(PANEL)
+    ax, cm = fig.subplots(1, 2, gridspec_kw={'width_ratios': [1, 1.6]})
+    for a in (ax, cm):
+        a.set_facecolor(PANEL)
+        for sp in a.spines.values():
+            sp.set_visible(False)
+    ref = cov.reference
+    used, removed, failed, unplaced = camera_states(cov)
+    allp = np.vstack([used, removed, failed])
+    r = np.linalg.norm(allp, axis=1).max()
+    ax.add_patch(plt_circle(r * 1.06))
+    if len(removed):
+        ax.scatter(removed[:, 0], removed[:, 1], s=30, facecolors='none', edgecolors=RED, linewidths=1,
+                   linestyles=(0, (2, 1.5)), zorder=2, label=f'removed for this build ({len(removed)})')
+    ax.scatter(used[:, 0], used[:, 1], s=16, color=th.CAMERA, zorder=3, label=f'used ({len(used)})')
+    n_failed = len(failed) + unplaced
+    if len(failed):
+        ax.scatter(failed[:, 0], failed[:, 1], s=34, color=RED, zorder=4, label=f'failed to align ({n_failed})')
+    elif n_failed:
+        ax.scatter([], [], s=34, color=RED, label=f'failed to align ({n_failed})')
+    ax.plot(0, 0, '+', color=MUTED, ms=10)
+    ax.annotate('0°', (r * 1.12, 0), ha='left', va='center', color=MUTED)
+    ax.set_title('Cameras from above', fontsize=12, loc='left')
     ax.legend(loc='upper left', fontsize=9, frameon=False, bbox_to_anchor=(0, -0.02))
     ax.set_aspect('equal')
-    ax.set_xlim(-r * 1.25, r * 1.25)
-    ax.set_ylim(-r * 1.25, r * 1.25)
+    ax.set_xlim(-r * 1.3, r * 1.3)
+    ax.set_ylim(-r * 1.3, r * 1.3)
     ax.set_xticks([])
     ax.set_yticks([])
-    fig.colorbar(sc, ax=ax, shrink=0.7, label='height (°)')
 
     az, el, n = cov.az_edges, cov.el_edges, cov.counts
-    vmax = max(n.max(), 4)
-    cm.pcolormesh(az, el, n, cmap='Blues', vmin=0, vmax=vmax, edgecolors='white', linewidth=1)
     for i in range(n.shape[0]):
         for j in range(n.shape[1]):
-            colour = RED if cov.missing[i, j] else GREY if cov.never[i, j] else None
-            if colour:
-                cm.add_patch(Rectangle((az[j], el[i]), az[j + 1] - az[j], el[i + 1] - el[i],
-                                       facecolor=colour, edgecolor='white'))
+            miss, never = cov.missing[i, j], cov.never[i, j]
+            face = RED if miss else GREY if never else 'white'
+            cm.add_patch(Rectangle((az[j], el[i]), az[j + 1] - az[j], el[i + 1] - el[i],
+                                   facecolor=face, edgecolor=PANEL, linewidth=2))
             text = f'{n[i, j]}' if ref is None else f'{n[i, j]}/{ref.counts[i, j]}'
             cm.text((az[j] + az[j + 1]) / 2, (el[i] + el[i + 1]) / 2, text, ha='center', va='center',
-                    fontsize=10 if ref is None else 8,
-                    color='white' if cov.missing[i, j] or (colour is None and n[i, j] > 0.6 * vmax) else 'k')
-    cm.scatter(cov.azimuth, cov.elevation, s=5, color='k', alpha=0.35)
+                    fontsize=10 if ref is None else 8.5, color='white' if miss else TEXT)
     for name, lo, hi in zip(BAND_NAMES.get(len(n), []), el[:-1], el[1:]):
-        cm.text(362, (lo + hi) / 2, name, va='center', fontsize=10, color='0.3')
+        cm.text(363, (lo + hi) / 2, name, va='center', fontsize=10, color=MUTED)
     cm.set_xlim(0, 360)
     cm.set_ylim(el[0], el[-1])
     cm.set_xticks(az[::2])
+    cm.tick_params(length=0)
     cm.set_ylabel('height (°)')
-    dot = Line2D([], [], marker='o', ls='', color='k', alpha=0.35, ms=4, label='one camera')
     if ref is None:
         cm.set_xlabel('around the object (°, 0 = first camera)')
-        cm.set_title('Where the cameras are', fontsize=12)
-        handles = [Patch(facecolor=RED, label=f'gap: fewer than {cov.min_cameras} cameras'),
-                   Patch(facecolor='#6baed6', label='number = cameras in the cell'), dot]
+        cm.set_title('Cameras per cell', fontsize=12, loc='left')
+        handles = [Patch(facecolor=RED, label=f'fewer than {cov.min_cameras} cameras'),
+                   Patch(facecolor='white', edgecolor=BORDER, label='number = cameras in the cell')]
     else:
         cm.set_xlabel(f'around the object (°, as in {ref_name})')
-        cm.set_title(f'Cameras: this build / {ref_name}', fontsize=12)
-        handles = [Patch(facecolor=RED, label=f'missing: {ref_name} has {cov.min_cameras}+, this build fewer'),
-                   Patch(facecolor=GREY, label=f'{ref_name} has few here too'), dot]
+        cm.set_title('Cameras per cell: this build / reference', fontsize=12, loc='left')
+        handles = [Patch(facecolor=RED, label=f'reference has {cov.min_cameras}+, this build fewer'),
+                   Patch(facecolor=GREY, label='reference has few here too'),
+                   Patch(facecolor='white', edgecolor=BORDER, label='covered')]
     cm.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, -0.17), ncol=3, frameon=False, fontsize=9)
     fig.tight_layout()
 
 
-def draw_score(fig, row, run_name, ref_name):
+def plt_circle(r):
+    from matplotlib.patches import Circle
+    return Circle((0, 0), r, facecolor='white', edgecolor='none', zorder=0)
+
+
+def draw_score(fig, row, run_name, ref_name, bg=PANEL):
+    """Geometric error, missing and extra RMSE as bars, with the good / fair bands marked."""
     fig.clear()
+    fig.set_facecolor(bg)
     ax = fig.subplots()
-    names = ['Score', 'Missing', 'Extra']
-    values = [row['label_v3'], row['r2c_rmse_norm'], row['c2r_rmse_norm']]
-    bars = ax.barh(names[::-1], values[::-1], color=['#9ecae1', '#9ecae1', ACCENT], height=0.55)  # Score on top
-    top = max(values) * 1.35 or 1
+    ax.set_facecolor(bg)
+    names = ['Geometric error', 'Missing RMSE', 'Extra RMSE']
+    values = [100 * row['label_v3'], 100 * row['r2c_rmse_norm'], 100 * row['c2r_rmse_norm']]
+    colors = [INK, th.MESH, th.MESH]
+    bars = ax.barh(names[::-1], values[::-1], color=colors[::-1], height=0.5)
+    top = max(max(values) * 1.3, 2.4)
+    for x, text in ((1.2, 'good < 1.2%'), (2.0, 'fair < 2%')):
+        ax.plot([x, x], [-0.6, 2.4], color=MUTED, lw=0.8, ls=(0, (3, 3)))
+        ax.text(x, 2.55, text, ha='center', va='bottom', fontsize=9, color=MUTED)
     for b, v in zip(bars, values[::-1]):
-        ax.text(b.get_width() + top * 0.01, b.get_y() + b.get_height() / 2, f'{v:.4f}', va='center', fontsize=12)
+        ax.text(b.get_width() + top * 0.012, b.get_y() + b.get_height() / 2, f'{v:.2f}%', va='center', fontsize=11)
     ax.set_xlim(0, top)
-    ax.set_title(f'{run_name} vs {ref_name}', fontsize=13, loc='left')
-    ax.set_xlabel(f'fraction of {ref_name}\'s size (lower is better)')
-    for side in ('top', 'right'):
+    ax.set_ylim(-0.6, 2.9)
+    ax.set_xlabel(f'% of the reference size ({ref_name} bounding-box diagonal) · lower is better')
+    for side in ('top', 'right', 'left'):
         ax.spines[side].set_visible(False)
-    ax.tick_params(labelsize=12)
+    ax.tick_params(length=0, labelsize=11)
     fig.tight_layout()
 
 
@@ -272,23 +304,23 @@ class Task:
 
 
 class ProgressView(ttk.Frame):
-    """Stage in plain words, a bar (filled where the log counts items), elapsed time and Cancel."""
+    """Stage, a thin bar (filled where the log counts items), elapsed time and Cancel, on a grey panel."""
 
     def __init__(self, master, app, task):
-        super().__init__(master)
+        super().__init__(master, style='OnPanel.TFrame')
         self.app, self.task = app, task
-        self.stage = ttk.Label(self, text=task.tracker.current.stage + '…', style='H2.TLabel')
+        self.stage = ttk.Label(self, text=task.tracker.current.stage, style='Panel.H2.TLabel')
         self.stage.pack(anchor='w')
-        self.bar = ttk.Progressbar(self, mode='indeterminate', length=640)
-        self.bar.pack(anchor='w', pady=(14, 6), fill='x')
-        row = ttk.Frame(self)
+        self.bar = ttk.Progressbar(self, mode='indeterminate', length=560)
+        self.bar.pack(anchor='w', pady=(16, 8), fill='x')
+        row = ttk.Frame(self, style='OnPanel.TFrame')
         row.pack(fill='x')
-        self.detail = ttk.Label(row, text='', style='Muted.TLabel')
+        self.detail = ttk.Label(row, text='', style='Panel.Muted.TLabel')
         self.detail.pack(side='left')
-        self.elapsed = ttk.Label(row, text='0:00', style='Muted.TLabel')
+        self.elapsed = ttk.Label(row, text='0:00', style='Panel.Muted.TLabel')
         self.elapsed.pack(side='right')
-        self.cancel_button = ttk.Button(self, text='Cancel', command=self.cancel)
-        self.cancel_button.pack(anchor='e', pady=(18, 0))
+        self.cancel_button = ttk.Button(self, text='Cancel', style='Panel.Text.TButton', command=self.cancel)
+        self.cancel_button.pack(anchor='w', pady=(18, 0))
         self.indeterminate = False
         task.view = self
         self.update_progress(task.tracker.current)
@@ -297,7 +329,7 @@ class ProgressView(ttk.Frame):
     def update_progress(self, p):
         if not self.winfo_exists():
             return
-        self.stage.config(text=p.stage + '…')
+        self.stage.config(text=p.stage)
         self.detail.config(text=p.detail)
         if p.fraction is None:
             if not self.indeterminate:
@@ -346,20 +378,21 @@ class CaptureApp:
             root.bind(key, lambda e: self.press(self.next_button))
         root.bind('<Escape>', lambda e: self.press(self.back_button))
 
-        top = ttk.Frame(root, padding=(20, 12, 20, 0))
+        top = ttk.Frame(root, padding=(40, 14, 34, 14))
         top.pack(fill='x')
-        ttk.Label(top, text='Capture check', style='Bold.TLabel').pack(side='left')
-        ttk.Button(top, text='⚙  Advanced', style='Link.TButton', command=self.open_advanced).pack(side='right')
-        ttk.Separator(root).pack(fill='x', pady=(10, 0))
+        ttk.Label(top, text='BD3D', style='Bold.TLabel').pack(side='left')
+        ttk.Label(top, text='Capture check', style='Muted.TLabel').pack(side='left', padx=(10, 0))
+        ttk.Button(top, text='Advanced', style='Text.TButton', command=self.open_advanced).pack(side='right')
+        tk.Frame(root, height=1, bg=BORDER).pack(fill='x')
         self.body = ttk.Frame(root)
         self.body.pack(fill='both', expand=True)
 
-        self.details = ttk.Frame(root, padding=(20, 0, 20, 10))
-        self.details_button = ttk.Button(self.details, text='▸  Show details', style='Link.TButton',
+        self.details = ttk.Frame(root, padding=(34, 0, 40, 10))
+        self.details_button = ttk.Button(self.details, text='Log', style='Text.TButton',
                                          command=self.toggle_details)
         self.details_button.pack(anchor='w')
         self.log_box = ScrolledText(self.details, height=12, state='disabled', font=self.fonts['mono'],
-                                    relief='flat', bg='#fafafa', highlightthickness=1, highlightbackground=BORDER)
+                                    relief='flat', bg=SURFACE, fg=TEXT, highlightthickness=1, highlightbackground=BORDER)
         self.details_open = False
 
         self.root.after(100, self.pump)
@@ -422,10 +455,10 @@ class CaptureApp:
         self.details_open = not self.details_open
         if self.details_open:
             self.log_box.pack(fill='both', expand=True, pady=(4, 0))
-            self.details_button.config(text='▾  Hide details')
+            self.details_button.config(text='Hide log')
         else:
             self.log_box.pack_forget()
-            self.details_button.config(text='▸  Show details')
+            self.details_button.config(text='Log')
 
     def clear(self, details=True):
         self.gen += 1
@@ -445,10 +478,10 @@ class CaptureApp:
         lab.pack(anchor='w', **pack)
         return lab
 
-    def figure(self, master, key, size=(11, 4.6)):
-        fig = Figure(figsize=size, facecolor=BG)
+    def figure(self, master, key, size=(11, 4.6), bg=PANEL):
+        fig = Figure(figsize=size, facecolor=bg)
         canvas = FigureCanvasTkAgg(fig, master=master)
-        canvas.get_tk_widget().configure(bg=BG, highlightthickness=0)
+        canvas.get_tk_widget().configure(bg=bg, highlightthickness=0)
         self.figures[key] = fig
         return fig, canvas
 
@@ -525,46 +558,49 @@ class CaptureApp:
         win = self.advanced = tk.Toplevel(self.root, bg=BG)
         win.title('Advanced')
         win.transient(self.root)
-        frame = ttk.Frame(win, padding=24)
+        outer = ttk.Frame(win, padding=24)
+        outer.pack(fill='both', expand=True)
+        frame = ttk.Frame(outer, style='Card.TFrame', padding=28)
         frame.pack(fill='both', expand=True)
         win.bind('<Escape>', lambda e: win.destroy())
 
-        def section(title):
-            ttk.Label(frame, text=title, style='Bold.TLabel').pack(anchor='w', pady=(14, 4))
+        def section(title, first=False):
+            ttk.Label(frame, text=title, style='Card.Bold.TLabel').pack(anchor='w', pady=(0 if first else 18, 4))
 
-        section('Metashape')
-        self.adv_python = ttk.Label(frame, style='Small.TLabel', wraplength=640)
+        section('Metashape', first=True)
+        self.adv_python = ttk.Label(frame, style='Card.Small.TLabel', wraplength=600)
         self.adv_python.pack(anchor='w')
-        self.adv_python_status = ttk.Label(frame, wraplength=640)
-        self.adv_python_status.pack(anchor='w', pady=(2, 6))
-        row = ttk.Frame(frame)
+        self.adv_python_status = ttk.Label(frame, style='Card.TLabel', wraplength=600)
+        self.adv_python_status.pack(anchor='w', pady=(2, 2))
+        row = ttk.Frame(frame, style='In.TFrame')
         row.pack(anchor='w')
-        ttk.Button(row, text='Change…', command=self.change_python).pack(side='left')
-        ttk.Button(row, text='Search again', command=self.detect_python).pack(side='left', padx=8)
-        self.label(frame, 'Align and Build mesh run Metashape on this Mac and need a Metashape license '
-                          '(on the network: check the VPN).', 'Small.TLabel', 640, pady=(6, 0))
+        ttk.Button(row, text='Change…', style='Card.Text.TButton', command=self.change_python).pack(side='left')
+        ttk.Button(row, text='Search again', style='Card.Text.TButton', command=self.detect_python
+                   ).pack(side='left', padx=12)
+        self.label(frame, 'Align and Mesh need a Metashape license (on the network: VPN).', 'Card.Small.TLabel', 600)
 
-        section('Where new builds go')
-        self.adv_runs = ttk.Label(frame, style='Small.TLabel', wraplength=640)
+        section('Builds folder')
+        self.adv_runs = ttk.Label(frame, style='Card.Small.TLabel', wraplength=600)
         self.adv_runs.pack(anchor='w')
-        row = ttk.Frame(frame)
-        row.pack(anchor='w', pady=(4, 0))
-        ttk.Button(row, text='Change…', command=self.change_runs_folder).pack(side='left')
-        ttk.Button(row, text='Use the default', command=lambda: self.set_runs_folder(DEFAULT_RUNS)).pack(side='left', padx=8)
+        row = ttk.Frame(frame, style='In.TFrame')
+        row.pack(anchor='w')
+        ttk.Button(row, text='Change…', style='Card.Text.TButton', command=self.change_runs_folder).pack(side='left')
+        ttk.Button(row, text='Use the default', style='Card.Text.TButton',
+                   command=lambda: self.set_runs_folder(DEFAULT_RUNS)).pack(side='left', padx=12)
 
-        section('Mesh settings (as the pilot builds ref50 and ref145b)')
-        self.label(frame, ps.settings_text(), 'Small.TLabel', 640)
-        section('Safety limits (resource watchdog)')
-        self.label(frame, f'Align: {ps.ALIGN_LIMITS.text()}\nMesh:  {ps.MESH_LIMITS.text()}', 'Small.TLabel', 640)
-        ttk.Button(frame, text='Close', command=win.destroy).pack(anchor='e', pady=(20, 0))
+        section('Reconstruction settings (as ref50 and ref145b)')
+        self.label(frame, ps.settings_text(), 'Card.Small.TLabel', 600)
+        section('Resource limits')
+        self.label(frame, f'Align  {ps.ALIGN_LIMITS.text()}\nMesh   {ps.MESH_LIMITS.text()}', 'Card.Small.TLabel', 600)
+        ttk.Button(outer, text='Done', style='Primary.TButton', command=win.destroy).pack(anchor='e', pady=(16, 0))
         self.refresh_advanced()
 
     def refresh_advanced(self):
         if self.advanced is None or not self.advanced.winfo_exists():
             return
         self.adv_python.config(text=self.python or '(none)')
-        self.adv_python_status.config(text=self.python_text,
-                                      style='Ok.TLabel' if self.python else 'Muted.TLabel' if self.detecting else 'Error.TLabel')
+        self.adv_python_status.config(text=self.python_text, style='Card.Ok.TLabel' if self.python else
+                                      'Card.Muted.TLabel' if self.detecting else 'Card.Error.TLabel')
         self.adv_runs.config(text=str(self.runs_folder))
 
     def change_runs_folder(self):
@@ -598,7 +634,7 @@ class CaptureApp:
         win.transient(self.advanced or self.root)
         frame = ttk.Frame(win, padding=20)
         frame.pack(fill='both', expand=True)
-        self.label(frame, 'Python interpreter that can import Metashape (for example a venv\'s bin/python):',
+        self.label(frame, 'Python that can import Metashape (for example a venv\'s bin/python):',
                    wrap=600, pady=(0, 6))
         var = tk.StringVar(value=self.python or '')
         entry = ttk.Entry(frame, textvariable=var, width=70, font=self.fonts['small'])
@@ -633,10 +669,10 @@ class CaptureApp:
             note.config(text='Testing…', style='Muted.TLabel')
             threading.Thread(target=lambda: self.post(done, python, *ml.probe(python)), daemon=True).start()
 
-        ttk.Button(buttons, text='Browse…', command=browse).pack(side='left')
-        test = ttk.Button(buttons, text='Test and use', style='Accent.TButton', command=try_it)
+        ttk.Button(buttons, text='Browse…', style='Text.TButton', command=browse).pack(side='left')
+        test = ttk.Button(buttons, text='Test and use', style='Primary.TButton', command=try_it)
         test.pack(side='right')
-        ttk.Button(buttons, text='Cancel', command=win.destroy).pack(side='right', padx=8)
+        ttk.Button(buttons, text='Cancel', style='Text.TButton', command=win.destroy).pack(side='right', padx=12)
         win.bind('<Return>', lambda e: try_it())
         win.bind('<Escape>', lambda e: win.destroy())
         entry.focus_set()
@@ -647,14 +683,17 @@ class CaptureApp:
         self.w = None
         self.clear(details=False)
         page = ttk.Frame(self.body)
-        page.place(relx=0.5, rely=0.45, anchor='center')
-        ttk.Label(page, text='What would you like to do?', style='H1.TLabel').pack(pady=(0, 36))
-        row = ttk.Frame(page)
-        row.pack()
-        ttk.Button(row, text='New build\nfrom photos', style='Huge.TButton', width=16,
-                   command=self.new_build).pack(side='left', padx=16)
-        ttk.Button(row, text='Open an\nexisting build', style='Huge.TButton', width=16,
-                   command=self.show_open).pack(side='left', padx=16)
+        page.place(relx=0.5, rely=0.42, anchor='center')
+        for title, text, button, style, command in (
+                ('New build', 'Align photos, check camera coverage,\nbuild and score a mesh.', 'New build',
+                 'Card.Primary.TButton', self.new_build),
+                ('Builds', 'Open an earlier build: coverage,\nscore and 3D view.', 'Open builds',
+                 'Card.Text.TButton', self.show_open)):
+            card = ttk.Frame(page, style='Card.TFrame', padding=32)
+            card.pack(side='left', padx=12, fill='y')
+            ttk.Label(card, text=title, style='Card.H2.TLabel').pack(anchor='w')
+            ttk.Label(card, text=text, style='Card.Muted.TLabel', justify='left').pack(anchor='w', pady=(8, 28))
+            ttk.Button(card, text=button, style=style, command=command).pack(anchor='w')
 
     # ------------------------------------------------------------ wizard frame
 
@@ -667,58 +706,87 @@ class CaptureApp:
         {'Photos': self.step_photos, 'Compare': self.step_compare, 'Align': self.step_align,
          'Coverage': self.step_coverage, 'Mesh': self.step_mesh, 'Score': self.step_score}[step]()
 
-    def wizard_page(self, step, title, subtitle=''):
-        """Header (Start link + step indicator), content frame, and nav frame; returns (content, nav)."""
+    def card(self, master, width=340, **pack):
+        """A white card split in two: left = text column (returned frame), right = grey visual panel."""
+        card = ttk.Frame(master, style='Card.TFrame', padding=28)
+        card.pack(fill='both', expand=True, **pack)
+        left = ttk.Frame(card, style='In.TFrame', width=width)
+        left.pack(side='left', fill='y', padx=(0, 28))
+        left.pack_propagate(False)
+        right = ttk.Frame(card, style='Panel.TFrame', padding=20)
+        right.pack(side='left', fill='both', expand=True)
+        return left, right
+
+    def empty(self, panel, text):
+        """Centered grey note in an empty visual panel."""
+        ttk.Label(panel, text=text, style='Panel.Muted.TLabel').place(relx=0.5, rely=0.5, anchor='center')
+
+    def stat(self, panel, value, caption, kind=None):
+        """One large number with a caption, centered in a visual panel."""
+        box = ttk.Frame(panel, style='OnPanel.TFrame')
+        box.place(relx=0.5, rely=0.5, anchor='center')
+        ttk.Label(box, text=value, style='Panel.Stat.TLabel').pack()
+        ttk.Label(box, text=caption, style='Panel.Muted.TLabel').pack(pady=(4, 0))
+        return box
+
+    def actions(self, left):
+        """Bottom row of the text column, for the step's buttons."""
+        row = ttk.Frame(left, style='In.TFrame')
+        row.pack(side='bottom', anchor='w', fill='x')
+        return row
+
+    def wizard_page(self, step, title, intro=''):
+        """Step bar, one card (left text column, right visual panel) and the nav row; returns (left, right, nav)."""
         self.clear()
-        bar = ttk.Frame(self.body, padding=(20, 12, 20, 0))
+        bar = ttk.Frame(self.body, padding=(40, 18, 40, 0))
         bar.pack(fill='x')
-        home = ttk.Button(bar, text='←  Start', style='Link.TButton', command=self.show_start)
+        home = ttk.Button(bar, text='←  Start', style='Text.TButton', command=self.show_start)
         home.pack(side='left')
         if self.task is not None:
             home.config(state='disabled')
         steps = ttk.Frame(bar)
-        steps.pack(side='left', expand=True)
+        steps.pack(side='right')
         for i, s in enumerate(STEPS):
             state = self.w.status[s]
+            name = f'{i + 1}  {STEP_NAMES.get(s, s)}'
             if s == step:
-                text, style = f'●  {s}', 'StepNow.TLabel'
+                text, style = name, 'StepNow.TLabel'
             elif state == 'done':
-                text, style = f'✓  {s}', 'StepDone.TLabel'
-            elif state == 'skipped':
-                text, style = f'–  {s}', 'StepTodo.TLabel'
+                text, style = '✓  ' + STEP_NAMES.get(s, s), 'StepDone.TLabel'
             elif state in ('failed', 'cancelled'):
-                text, style = f'✗  {s}', 'Warn.TLabel'
+                text, style = '✕  ' + STEP_NAMES.get(s, s), 'StepBad.TLabel'
             else:
-                text, style = f'○  {s}', 'StepTodo.TLabel'
-            if i:
-                ttk.Label(steps, text='—', style='StepTodo.TLabel').pack(side='left', padx=8)
-            ttk.Label(steps, text=text, style=style).pack(side='left')
-        ttk.Frame(bar, width=70).pack(side='right')        # balances the Start link
+                text, style = name, 'StepTodo.TLabel'
+            ttk.Label(steps, text=text, style=style).pack(side='left', padx=(22 if i else 0, 0))
 
-        nav = ttk.Frame(self.body, padding=(32, 0, 32, 16))
+        nav = ttk.Frame(self.body, padding=(40, 0, 40, 22))
         nav.pack(fill='x', side='bottom')
-        content = ttk.Frame(self.body, padding=(48, 28, 48, 12))
+        content = ttk.Frame(self.body, padding=(40, 16, 40, 16))
         content.pack(fill='both', expand=True)
-        ttk.Label(content, text=title, style='H1.TLabel').pack(anchor='w')
-        if subtitle:
-            self.label(content, subtitle, 'Muted.TLabel', 1000, pady=(6, 0))
-        return content, nav
+        left, right = self.card(content)
+        ttk.Label(left, text=title, style='Card.H2.TLabel').pack(anchor='w')
+        if intro:
+            self.label(left, intro, 'Card.Muted.TLabel', 320, pady=(6, 0))
+        return left, right, nav
 
-    def nav_buttons(self, nav, back=None, next_=None, next_text='Next  →', next_enabled=True, extra=()):
+    def nav_buttons(self, nav, back=None, next_=None, next_text='Next', next_enabled=True, extra=(),
+                    next_primary=True):
+        """Back (text) on the left; Next on the right: the black pill when it is the step's main action."""
         busy = self.task is not None
         if back is not None:
-            self.back_button = ttk.Button(nav, text='←  Back', command=back)
+            self.back_button = ttk.Button(nav, text='←  Back', style='Text.TButton', command=back)
             self.back_button.pack(side='left')
             if busy:
                 self.back_button.config(state='disabled')
         if next_ is not None:
-            self.next_button = ttk.Button(nav, text=next_text, style='Accent.TButton', command=next_)
+            self.next_button = ttk.Button(nav, text=next_text if next_primary else f'{next_text}  →',
+                                          style='Primary.TButton' if next_primary else 'Text.TButton', command=next_)
             self.next_button.pack(side='right')
             if busy or not next_enabled:
                 self.next_button.config(state='disabled')
         for text, command in extra:
-            b = ttk.Button(nav, text=text, command=command)
-            b.pack(side='right', padx=8)
+            b = ttk.Button(nav, text=text, style='Text.TButton', command=command)
+            b.pack(side='right', padx=16)
             if busy:
                 b.config(state='disabled')
 
@@ -726,19 +794,23 @@ class CaptureApp:
 
     def step_photos(self):
         w = self.w
-        content, nav = self.wizard_page('Photos', 'Choose the photo folder',
-                                        'All photos of one object, in one folder.')
-        row = ttk.Frame(content)
-        row.pack(anchor='w', pady=(22, 10))
-        ttk.Button(row, text='Choose folder…' if w.folder is None else 'Choose another folder…',
-                   style='Accent.TButton' if w.folder is None else 'TButton',
+        has = w.folder is not None
+        left, right, nav = self.wizard_page('Photos', 'Photos', 'One folder, one object.')
+        self.nav_buttons(nav, back=self.show_start, next_=lambda: self.leave_photos(), next_primary=has,
+                         next_enabled=has and w.folder.ok and w.checked)
+        row = self.actions(left)
+        ttk.Button(row, text='Choose folder…' if not has else 'Choose another folder…',
+                   style='Card.Primary.TButton' if not has else 'Card.Text.TButton',
                    command=self.choose_photos).pack(side='left')
-        self.photos_box = ttk.Frame(content)
-        self.photos_box.pack(fill='both', expand=True)
-        self.nav_buttons(nav, back=self.show_start, next_=lambda: self.leave_photos(),
-                         next_enabled=w.folder is not None and w.folder.ok and w.checked)
-        if w.folder is not None:
+        self.photos_box = ttk.Frame(left, style='In.TFrame')
+        self.photos_box.pack(fill='x', pady=(16, 0))
+        self.thumb_row = ttk.Frame(right, style='OnPanel.TFrame')
+        self.thumb_row.pack(anchor='nw')
+        self.thumbs = []
+        if has:
             self.render_photos()
+        else:
+            self.empty(right, 'No folder chosen.')
 
     def choose_photos(self):
         w = self.w
@@ -754,7 +826,7 @@ class CaptureApp:
             pf = bl.scan_photo_folder(folder)
         except ValueError as exc:
             self.log(f'photo folder {folder}: {exc}')
-            return self.error('Cannot use this folder', str(exc))
+            return self.error('This folder cannot be used', str(exc))
         self.w = w = Wizard(folder=pf)
         w.name = ps.capture_name(pf.root, self.runs_folder)
         self.log(f'photo folder {pf.root}: {pf.summary}; ' + ' '.join(pf.warnings))
@@ -776,11 +848,11 @@ class CaptureApp:
             def progress(done, total):
                 if time.monotonic() - last[0] > 0.1 or done == total:
                     last[0] = time.monotonic()
-                    self.post(self.photos_progress, w, f'Checking photos… {done} of {total}')
+                    self.post(self.photos_progress, w, f'Checking {done} / {total}')
             photos = bl.photo_fingerprints(w.folder, progress)
             if stale():
                 return
-            self.post(self.photos_progress, w, 'Looking for earlier builds of the same object…')
+            self.post(self.photos_progress, w, 'Finding earlier builds…')
             builds = bl.find_builds(roots)
             compatible = bl.compatible_builds(photos, builds)
             self.post(self.photos_checked, w, photos, builds, compatible)
@@ -792,11 +864,12 @@ class CaptureApp:
         from PIL import ImageTk
         photo = ImageTk.PhotoImage(im)
         self.thumbs.append(photo)
-        tk.Label(self.thumb_row, image=photo, bg=BG, bd=0).pack(side='left', padx=(0, 8))
+        i = len(self.thumbs) - 1
+        tk.Label(self.thumb_row, image=photo, bg=PANEL, bd=0).grid(row=i // 5, column=i % 5, padx=(0, 10), pady=(0, 10))
 
-    def photos_progress(self, w, text):
+    def photos_progress(self, w, text, done=False):
         if self.w is w and w.step == 'Photos' and hasattr(self, 'check_label') and self.check_label.winfo_exists():
-            self.check_label.config(text=text)
+            self.check_label.config(text=text, style='Card.Tag.good.TLabel' if done else 'Card.Tag.neutral.TLabel')
 
     def photos_checked(self, w, photos, builds, compatible):
         if self.w is not w:
@@ -808,35 +881,30 @@ class CaptureApp:
         if len(photos) < len(w.folder.photos):
             self.log(f'note: {len(w.folder.photos) - len(photos)} photos are exact duplicates of others')
         if w.step == 'Photos':
-            self.photos_progress(w, 'Photos checked.')
+            self.photos_progress(w, 'Checked', done=True)
             if self.next_button is not None and self.next_button.winfo_exists():
-                self.next_button.config(state='normal')
+                self.next_button.config(state='normal', style='Primary.TButton', text='Next')
 
     def render_photos(self):
         w, box = self.w, self.photos_box
         pf = w.folder
-        line = ttk.Frame(box)
-        line.pack(anchor='w', fill='x')
-        ttk.Label(line, text=('✓  ' if pf.ok else '✗  ') + pf.summary, style='H2.TLabel' if pf.ok else 'Error.TLabel'
-                  ).pack(side='left')
+        tags = ttk.Frame(box, style='In.TFrame')
+        tags.pack(anchor='w')
+        self.tag(tags, f'{len(pf.photos)} photos', '' if pf.ok else 'bad')
         if pf.ok:
-            ttk.Label(line, text=f'Build name: {w.name}', style='Muted.TLabel').pack(side='left', padx=(28, 0))
-        self.label(box, f'Folder: {pf.root.name}', 'Muted.TLabel', pady=(4, 0))
-        self.thumb_row = ttk.Frame(box)
-        self.thumb_row.pack(anchor='w', pady=14)
-        self.thumbs = []
+            self.check_label = self.tag(tags, 'Checked' if w.checked else 'Checking…', 'good' if w.checked else '')
+        rows = [('Folder', pf.root.name)] + ([('Build', w.name)] if pf.ok else [])
+        grid = ttk.Frame(box, style='In.TFrame')
+        grid.pack(anchor='w', fill='x', pady=(14, 0))
+        for r, (k, v) in enumerate(rows):
+            ttk.Label(grid, text=k, style='Card.Muted.TLabel').grid(row=r, column=0, sticky='w', pady=2)
+            ttk.Label(grid, text=v, style='Card.TLabel').grid(row=r, column=1, sticky='w', padx=(16, 0), pady=2)
         for text in pf.warnings:
-            if pf.ok or 'No supported' not in text:
-                self.label(box, '⚠  ' + text, 'Warn.TLabel', pady=2)
-            else:
-                self.label(box, text, 'Error.TLabel', pady=2)
-        if pf.ok:
-            self.check_label = self.label(box, 'Photos checked.' if w.checked else 'Checking photos…', 'Muted.TLabel',
-                                          pady=(12, 0))
-            if w.checked:                      # came back with Back: reload the thumbnails only
-                self.background(lambda: self.load_thumbs(w))
+            self.label(box, text, 'Card.Warn.TLabel' if pf.ok else 'Card.Error.TLabel', 320, pady=(8, 0))
+        if pf.ok and w.checked:                # came back with Back: reload the thumbnails only
+            self.background(lambda: self.load_thumbs(w))
 
-    def load_thumbs(self, w, count=7):
+    def load_thumbs(self, w, count=15):
         """Worker thread: small previews of the first photos (PhotoImage is made on the main thread)."""
         from PIL import Image
         for rel in w.folder.photos[:count]:
@@ -846,7 +914,7 @@ class CaptureApp:
                 with Image.open(w.folder.root / rel) as im:
                     im.draft('RGB', (240, 240))         # fast JPEG decode at reduced size
                     im = im.convert('RGB')
-                    im.thumbnail((120, 120))
+                    im.thumbnail((132, 132))
                 self.post(self.add_thumb, w, im)
             except Exception as exc:
                 self.post(self.log, f'preview of {rel}: {exc}')
@@ -859,46 +927,39 @@ class CaptureApp:
 
     def step_compare(self):
         w = self.w
-        content, nav = self.wizard_page('Compare', 'Compare with an earlier build?',
-                                        'Earlier builds of the same object (they share photos with this set). '
-                                        'Comparing shows what this capture misses and lets you score its mesh. '
-                                        'Optional.')
+        left, right, nav = self.wizard_page('Compare', 'Reference',
+                                            'Optional. An earlier build of the same object: coverage is measured '
+                                            'against it, and the mesh is scored against its mesh.')
         self.nav_buttons(nav, back=self.compare_back, next_=lambda: self.leave_compare(self.compare_pick()),
                          next_enabled=False, extra=[('Skip', lambda: self.leave_compare(None))])
+        self.compare_note = self.label(left, '', 'Card.Warn.TLabel', 320, pady=(14, 0))
+        self.compare_selected = None
         if not w.compatible:
-            self.label(content, 'No earlier builds share photos with this set.', 'Big.TLabel', pady=(30, 0))
-            self.next_button.config(state='disabled')
+            self.empty(right, 'No earlier build shares photos with this set.')
             return
-        tree = self.build_table(content, [('name', 'Name', 260), ('group', 'Location', 200), ('photos', 'Photos', 90),
-                                          ('shared', 'Shared', 90), ('mesh', 'Mesh', 70), ('date', 'Date', 130)])
-        self.compare_rows = {}
-        for b, n in w.compatible:
-            iid = tree.insert('', 'end', values=(b.name, b.group, b.photo_count, n, '✓' if b.has_mesh else '–',
-                                                 date_text(b.date)))
-            self.compare_rows[iid] = b
-            if w.compare is not None and b.key == w.compare.key:
-                tree.selection_set(iid)
-                tree.see(iid)
-        tree.rows = self.compare_rows
-        self.compare_tree = tree
-        self.compare_note = self.label(content, '', 'Warn.TLabel', pady=(10, 0))
 
-        def picked(_=None):
-            b = self.compare_pick()
+        def picked(b):
+            self.compare_selected = b
             if self.next_button is not None and self.task is None:
-                self.next_button.config(state='normal' if b else 'disabled')
-            self.compare_note.config(text='' if b is None or b.has_mesh else
-                                     f'⚠  {b.name} has no mesh, so the score step will not be available.')
-        tree.bind('<<TreeviewSelect>>', picked)
-        tree.bind('<Double-1>', lambda e: self.press(self.next_button))
-        picked()
-        tree.focus_set()
+                self.next_button.config(state='normal')
+            self.compare_note.config(text='' if b.has_mesh else f'{b.name} has no mesh: no score.')
+        selected = next((b for b, _ in w.compatible if w.compare is not None and b.key == w.compare.key), None)
+        shared = {b.key: n for b, n in w.compatible}
+        self.build_rows(right, [b for b, _ in w.compatible], [
+            ('Build', 0, lambda b: b.name, lambda b: b.name.lower()),
+            ('Location', 190, lambda b: b.group, lambda b: b.group.lower()),
+            ('Photos', 80, lambda b: str(b.photo_count), lambda b: b.photo_count),
+            ('Shared', 80, lambda b: str(shared[b.key]), lambda b: shared[b.key]),
+            ('Mesh', 100, lambda b: ('tag', 'Mesh', 'good') if b.has_mesh else ('tag', 'No mesh', ''),
+             lambda b: b.has_mesh),
+            ('Date', 120, lambda b: date_text(b.date), lambda b: b.date.timestamp() if b.date else 0)],
+            on_open=lambda b: (picked(b), self.press(self.next_button)), on_select=picked, selected=selected,
+            bg=PANEL)
+        if selected is not None:
+            picked(selected)
 
     def compare_pick(self):
-        if not hasattr(self, 'compare_tree') or not self.compare_tree.winfo_exists():
-            return None
-        sel = self.compare_tree.selection()
-        return self.compare_rows.get(sel[0]) if sel else None
+        return getattr(self, 'compare_selected', None)
 
     def compare_back(self):
         if self.w.status['Align'] != 'todo':
@@ -926,40 +987,43 @@ class CaptureApp:
 
     def step_align(self):
         w = self.w
-        content, nav = self.wizard_page('Align', 'Find camera positions',
-                                        'Uses Metashape on this Mac (license needed). Usually a few minutes.')
+        left, right, nav = self.wizard_page('Align', 'Align', 'Camera positions from the photos (Metashape).')
         state = w.status['Align']
+        usable = state == 'done' or (state == 'failed' and self.has_cameras(w.align_run))
         self.nav_buttons(nav, back=lambda: self.show_step('Compare'), next_=self.leave_align,
-                         next_enabled=state == 'done' or (state == 'failed' and self.has_cameras(w.align_run)))
-        box = ttk.Frame(content, padding=(0, 30, 0, 0))
-        box.pack(fill='both', expand=True)
+                         next_enabled=usable, next_primary=usable)
+        status = ttk.Frame(left, style='In.TFrame')
+        status.pack(anchor='w', fill='x', pady=(16, 0))
         if self.task is not None and self.task.kind == 'align':
-            ProgressView(box, self, self.task).pack(fill='x')
+            self.tag(status, 'Running')
+            ProgressView(right, self, self.task).pack(fill='x', anchor='n')
             return
-        if state == 'done':
+        if state == 'done' or (state == 'failed' and self.has_cameras(w.align_run)):
             placed, total = aligned_count(w.align_run)
-            self.label(box, f'✓  Cameras placed for {placed} of {total} photos.', 'H2.TLabel')
+            tags = ttk.Frame(status, style='In.TFrame')
+            tags.pack(anchor='w')
+            self.tag(tags, f'{placed} / {total} aligned', 'good' if placed == total else 'caution')
             if placed < total:
-                self.label(box, f'{total - placed} photos could not be placed; the next screen shows where they were.',
-                           'Muted.TLabel', pady=(6, 0))
-            return
+                self.tag(tags, f'{total - placed} failed to align', 'bad')
+            self.stat(right, f'{placed}', f'of {total} cameras aligned')
+        else:
+            self.empty(right, 'Not started.' if state == 'todo' else 'No cameras.')
         if state in ('failed', 'cancelled'):
-            self.label(box, ('✗  ' if state == 'failed' else '') + w.outcome.get('Align', ''),
-                       'Error.TLabel' if state == 'failed' else 'Warn.TLabel', pady=(0, 16))
-            if state == 'failed' and self.has_cameras(w.align_run):
-                self.label(box, 'Some cameras were placed: Next shows what there is.', 'Muted.TLabel', pady=(0, 16))
+            self.label(status, w.outcome.get('Align', ''), 'Card.Error.TLabel' if state == 'failed'
+                       else 'Card.Warn.TLabel', 320, pady=(10, 0))
+        source = 'reused from an earlier build' if w.cache else 'measured during alignment'
+        self.label(status, f'Image quality: {source}.', 'Card.Small.TLabel', 320, pady=(10, 0))
+        if state == 'done':
+            return
+        row = self.actions(left)
+        start = ttk.Button(row, text='Start alignment' if state == 'todo' else 'Try again',
+                           style='Card.Primary.TButton', command=self.run_align)
+        start.pack(side='left')
         note = self.metashape_note()
-        start = ttk.Button(box, text='Start' if state == 'todo' else 'Try again', style='Start.TButton',
-                           command=self.run_align)
-        start.pack(anchor='w')
         if note:
             start.config(state='disabled')
-            self.label(box, note, 'Error.TLabel' if not self.detecting else 'Muted.TLabel', pady=(14, 0))
-        if w.cache:
-            self.label(box, 'Image quality: reused from an earlier build (skips one step).', 'Muted.TLabel', pady=(18, 0))
-        else:
-            self.label(box, 'Image quality: will be measured (no earlier measurement covers all these photos).',
-                       'Muted.TLabel', pady=(18, 0))
+            self.label(left, note, 'Card.Error.TLabel' if not self.detecting else 'Card.Muted.TLabel', 320,
+                       side='bottom', pady=(0, 12))
 
     @staticmethod
     def has_cameras(run_dir):
@@ -1090,60 +1154,76 @@ class CaptureApp:
 
     def step_coverage(self):
         w = self.w
-        content, nav = self.wizard_page('Coverage', 'Camera coverage')
+        left, right, nav = self.wizard_page('Coverage', 'Coverage', 'Cameras by direction around the object.')
         self.nav_buttons(nav, back=lambda: self.show_step('Align'), next_=self.leave_coverage)
-        self.coverage_panel(content, w.align_run, w.name, w.compare)
+        self.coverage_panel(left, right, w.align_run, w.name, w.compare)
         w.status['Coverage'] = 'done'
 
-    def coverage_panel(self, master, run_dir, name, ref):
-        """Figure, the one-line summary and Save image… (shared by the wizard and the result screen)."""
+    def tag(self, master, text, kind='', card=True):
+        """Small pill status tag; kind is good, bad, caution or '' (neutral)."""
+        lab = ttk.Label(master, text=text, style=f'{"Card." if card else ""}Tag.{kind or "neutral"}.TLabel',
+                        font=self.fonts['tag'])
+        lab.pack(side='left', padx=(0, 6))
+        return lab
+
+    def coverage_panel(self, left, right, run_dir, name, ref, primary=None):
+        """Fill a card: left = tags, the gap summary, actions; right = the coverage chart.
+        primary = text makes the 3D view the screen's black pill; otherwise it is a text button."""
         try:
             cov, note = self.coverage_for(run_dir, ref)
         except Exception as exc:
             self.log(traceback.format_exc().rstrip())
-            self.label(master, f'The coverage could not be computed: {exc}', 'Error.TLabel', pady=(20, 0))
+            self.label(left, f'Coverage could not be computed: {exc}', 'Card.Error.TLabel', 320, pady=(14, 0))
             return
+        tags = ttk.Frame(left, style='In.TFrame')
+        tags.pack(anchor='w', pady=(16, 0))
+        self.tag(tags, f'{len(cov.labels)} cameras')
+        if cov.failed:
+            self.tag(tags, f'{len(cov.failed)} failed to align', 'bad')
+        gaps = int(cov.missing.sum())
+        self.tag(tags, f'{gaps} gap{"s" if gaps != 1 else ""}' if gaps else 'No gaps', 'bad' if gaps else 'good')
+        text = re.sub(r' \(\d+ of \d+ cameras failed to align\)', '', cov.summary) + (f' {note}' if note else '')
+        self.label(left, text, 'Card.TLabel', 320, pady=(12, 0))
+        if cov.reference is not None and ref is not None and not primary:   # the result screen has a picker
+            self.label(left, f'Reference: {ref.name}', 'Card.Small.TLabel', 320, pady=(6, 0))
+
+        row = self.actions(left)
+        open_3d = lambda: self.export_3d(run_dir, self.mesh_of(ref, run_dir), True)
+        ttk.Button(row, text=primary or '3D view', style='Card.Primary.TButton' if primary else 'Card.Text.TButton',
+                   command=open_3d).pack(side='left')
+        fig, canvas = self.figure(right, 'coverage')
+        ttk.Button(row, text='Save image…', style='Card.Text.TButton',
+                   command=lambda: self.save_image(fig, f'{name}-coverage')).pack(side='left', padx=(14, 0))
         if Path(run_dir, 'cameras.csv').is_file():
-            self.prediction_box(master, Path(run_dir) / 'cameras.csv', name)
-        bottom = ttk.Frame(master)
-        bottom.pack(fill='x', side='bottom', pady=(6, 0))
-        text = cov.summary + (f' {note}' if note else '')
-        ttk.Label(bottom, text=text, style='Big.TLabel', wraplength=900, justify='left').pack(side='left', anchor='w')
-        fig, canvas = self.figure(master, 'coverage')
+            self.prediction_box(left, Path(run_dir) / 'cameras.csv', name)
         ref_name = ref.name if cov.reference is not None else None
         draw_coverage(fig, cov, name, ref_name)
         canvas.draw()
-        ttk.Button(bottom, text='Save image…', command=lambda: self.save_image(fig, f'{name}-coverage')
-                   ).pack(side='right', anchor='n')
-        ttk.Button(bottom, text='3D view', command=lambda: self.export_3d(run_dir, self.mesh_of(ref, run_dir), True)
-                   ).pack(side='right', anchor='n', padx=(0, 10))
-        canvas.get_tk_widget().pack(fill='both', expand=True, pady=(8, 0))
-        self.log(f'coverage of {name}' + (f' vs {ref_name}' if ref_name else '') + f': {text}')
+        canvas.get_tk_widget().pack(fill='both', expand=True)
+        self.log(f'coverage of {name}' + (f' vs {ref_name}' if ref_name else '') + f': {cov.summary}'
+                 + (f' {note}' if note else ''))
 
     def prediction_box(self, master, cameras, name):
         """EXPERIMENTAL predicted quality from the aligned cameras alone (no mesh or reference needed).
-        Its own bordered box under the coverage summary: a number with its spread across the 5 seed
-        models and the training caveat, never a verdict and never styled like a measured score."""
-        outer = tk.Frame(master, bg=EXP_BG, highlightthickness=1, highlightbackground=EXP_BORDER)
-        outer.pack(fill='x', side='bottom', pady=(10, 0))
-        box = ttk.Frame(outer, style='Exp.TFrame', padding=(14, 8))
-        box.pack(fill='x')
-        top = ttk.Frame(box, style='Exp.TFrame')
-        top.pack(fill='x')
-        ttk.Label(top, text='EXPERIMENTAL', style='Exp.Tag.TLabel').pack(side='left', anchor='n', padx=(0, 12))
-        line = ttk.Label(top, text='Predicted quality: working…', style='Exp.Muted.TLabel', wraplength=900,
+        A caution-coloured box above the actions: a number with its spread across the 5 seed models and
+        the training caveat, never a verdict and never styled like a measured score."""
+        box = ttk.Frame(master, style='Exp.TFrame', padding=(12, 8))
+        box.pack(fill='x', side='bottom', pady=(0, 16))
+        ttk.Label(box, text='EXPERIMENTAL', style='Exp.Tag.TLabel').pack(anchor='w')
+        line = ttk.Label(box, text='Predicted quality: working…', style='Exp.Small.TLabel', wraplength=290,
                          justify='left')
-        line.pack(side='left', anchor='w')
+        line.pack(anchor='w', pady=(2, 0))
         gen = self.gen
 
         def show(p):
             if self.gen != gen or not box.winfo_exists():
                 return
-            line.config(text=p.text, style='Exp.TLabel')
-            caveat = p.caption
+            line.config(text=p.text.replace('Predicted quality: ', 'Predicted '), style='Exp.Bold.TLabel', font=self.fonts['small'])
+            caveat = re.sub(r'^Experimental:\s*', '', p.caption)
+            caveat = caveat[:1].upper() + caveat[1:]
             if p.in_training:
-                caveat += '. This build was one of the training runs, so this is not a test of the model.'
-            ttk.Label(box, text=caveat, style='Exp.Small.TLabel', wraplength=1000, justify='left'
+                caveat += '. Training run: not a test.'
+            ttk.Label(box, text=caveat, style='Exp.Small.TLabel', wraplength=290, justify='left'
                       ).pack(anchor='w', pady=(2, 0))
             seeds = ', '.join(f'seed {s} {v:.4f}' for s, v in sorted(p.per_seed.items()))
             self.log(f'experimental prediction for {name} ({p.cameras} cameras; {seeds}); '
@@ -1158,7 +1238,7 @@ class CaptureApp:
                 p = qm.predict_quality(cameras, QUALITY_MODELS)
             except qm.ModelsMissing as exc:
                 self.post(self.log, f'experimental prediction: {exc}')
-                self.post(unavailable, 'the experimental models are not on this computer')
+                self.post(unavailable, 'models not on this computer')
                 return
             except ValueError as exc:
                 self.post(self.log, f'experimental prediction: {exc}')
@@ -1179,45 +1259,46 @@ class CaptureApp:
     def step_mesh(self):
         w = self.w
         n = len(w.folder.photos)
-        content, nav = self.wizard_page('Mesh', 'Build a 3D mesh (optional)',
-                                        f'Uses Metashape (license needed). Takes {bl.mesh_time_estimate(n)} '
-                                        f'for {n} photos.')
+        left, right, nav = self.wizard_page('Mesh', 'Mesh', f'Dense surface (Metashape). Optional. '
+                                                            f'{bl.mesh_time_estimate(n).capitalize()} for {n} photos.')
         state = w.status['Mesh']
         to_score = w.compare is not None
+        ready = state in ('done', 'skipped')
         self.nav_buttons(nav, back=lambda: self.show_step('Coverage'), next_=self.leave_mesh,
-                         next_text='Next  →' if to_score else 'Finish', next_enabled=state in ('done', 'skipped'))
-        box = ttk.Frame(content, padding=(0, 30, 0, 0))
-        box.pack(fill='both', expand=True)
+                         next_text='Next' if to_score else 'Finish', next_enabled=ready, next_primary=ready)
+        status = ttk.Frame(left, style='In.TFrame')
+        status.pack(anchor='w', fill='x', pady=(16, 0))
         if self.task is not None and self.task.kind == 'mesh':
-            ProgressView(box, self, self.task).pack(fill='x')
+            self.tag(status, 'Running')
+            ProgressView(right, self, self.task).pack(fill='x', anchor='n')
             return
         if state == 'done':
-            self.label(box, '✓  Mesh built.', 'H2.TLabel')
-            ttk.Button(box, text='Open 3D view',
-                       command=lambda: self.export_3d(w.mesh_run, self.mesh_of(w.compare, w.mesh_run), True)
-                       ).pack(anchor='w', pady=(12, 0))
+            self.tag(status, 'Mesh built', 'good')
             if to_score and not w.compare.has_mesh:
-                self.label(box, f'{w.compare.name} has no mesh, so there is nothing to score against.',
-                           'Muted.TLabel', pady=(6, 0))
+                self.label(left, f'{w.compare.name} has no mesh: no score.', 'Card.Muted.TLabel', 320, pady=(10, 0))
+            faces = (_read_json(w.mesh_run / 'metrics-mesh_generation.json').get('metrics') or {}).get('mesh_face_count')
+            self.stat(right, f'{faces:,}' if faces else '✓', 'mesh faces' if faces else 'mesh built')
+            ttk.Button(self.actions(left), text='3D view', style='Card.Text.TButton',
+                       command=lambda: self.export_3d(w.mesh_run, self.mesh_of(w.compare, w.mesh_run), True)
+                       ).pack(side='left')
             return
+        self.empty(right, 'Skipped.' if state == 'skipped' else 'Not built.')
         if state in ('failed', 'cancelled'):
-            self.label(box, ('✗  ' if state == 'failed' else '') + w.outcome.get('Mesh', ''),
-                       'Error.TLabel' if state == 'failed' else 'Warn.TLabel', pady=(0, 16))
-        if state == 'skipped':
-            self.label(box, 'Skipped. You can still build the mesh now.', 'Muted.TLabel', pady=(0, 16))
-        row = ttk.Frame(box)
-        row.pack(anchor='w')
+            self.label(status, w.outcome.get('Mesh', ''), 'Card.Error.TLabel' if state == 'failed'
+                       else 'Card.Warn.TLabel', 320)
+        row = self.actions(left)
         build = ttk.Button(row, text='Build mesh' if state in ('todo', 'skipped') else 'Try again',
-                           style='Start.TButton', command=self.run_mesh)
+                           style='Card.Primary.TButton', command=self.run_mesh)
         build.pack(side='left')
         if state != 'skipped':
-            ttk.Button(row, text='Skip', command=self.skip_mesh).pack(side='left', padx=16)
+            ttk.Button(row, text='Skip', style='Card.Text.TButton', command=self.skip_mesh).pack(side='left', padx=14)
         reason = self.metashape_note()
         if not reason and not (w.align_run and ps.is_alignment_checkpoint(w.align_run)):
-            reason = 'The mesh needs a successful alignment.'
+            reason = 'The mesh needs a complete alignment.'
         if reason:
             build.config(state='disabled')
-            self.label(box, reason, 'Error.TLabel' if not self.detecting else 'Muted.TLabel', pady=(14, 0))
+            self.label(left, reason, 'Card.Error.TLabel' if not self.detecting else 'Card.Muted.TLabel', 320,
+                       side='bottom', pady=(0, 12))
 
     def skip_mesh(self):
         w = self.w
@@ -1306,61 +1387,66 @@ class CaptureApp:
 
     def step_score(self):
         w = self.w
-        content, nav = self.wizard_page('Score', 'Score the mesh')
+        ref = w.compare.name if w.compare is not None else 'the reference'
+        left, right, nav = self.wizard_page('Score', 'Score', f'Surface distance to {ref} (evaluator v3).')
         self.nav_buttons(nav, back=lambda: self.show_step('Mesh'), next_=self.finish, next_text='Finish')
-        box = ttk.Frame(content, padding=(0, 20, 0, 0))
-        box.pack(fill='both', expand=True)
-        if w.compare is None:
-            self.label(box, 'Skipped: no earlier build was chosen to compare with.', 'Big.TLabel')
-        elif w.mesh_run is None:
-            self.label(box, 'Skipped: no mesh was built.', 'Big.TLabel')
-            w.status['Score'] = 'skipped'
-        elif not w.compare.has_mesh:
-            self.label(box, f'Skipped: {w.compare.name} has no mesh.', 'Big.TLabel')
-            w.status['Score'] = 'skipped'
-        else:
-            self.score_panel(box, w.mesh_run, w.name, w.compare, cached=w.score,
-                             on_row=lambda row: self.wizard_scored(w, row), show_figure=True)
+        why = ('No reference was chosen.' if w.compare is None else 'No mesh was built.' if w.mesh_run is None
+               else f'{w.compare.name} has no mesh.' if not w.compare.has_mesh else '')
+        if why:
+            self.label(left, why, 'Card.Muted.TLabel', 320, pady=(16, 0))
+            self.empty(right, 'No score.')
+            if w.compare is not None:
+                w.status['Score'] = 'skipped'
+            return
+        self.score_panel(left, right, w.mesh_run, w.name, w.compare, cached=w.score,
+                         on_row=lambda row: self.wizard_scored(w, row))
 
     def wizard_scored(self, w, row):
         w.score, w.status['Score'] = row, 'done'
 
-    def score_panel(self, box, run_dir, name, ref, cached=None, on_row=None, show_figure=False):
-        """'Scoring…', then the score lines (+ figure) and Save image…; the score runs in a worker."""
-        holder = ttk.Frame(box)
-        holder.pack(fill='both', expand=True)
-        waiting = self.label(holder, 'Scoring… (a few seconds)', 'Muted.TLabel')
+    def metric_rows(self, master, rows, pady=(16, 0)):
+        """Labeled values (name left, value or tag right), as in the viewer's inspector."""
+        grid = ttk.Frame(master, style='In.TFrame')
+        grid.pack(fill='x', pady=pady)
+        grid.columnconfigure(1, weight=1)
+        for r, (name, value, tag) in enumerate(rows):
+            ttk.Label(grid, text=name, style='Card.Muted.TLabel').grid(row=r, column=0, sticky='w', pady=4)
+            cell = ttk.Frame(grid, style='In.TFrame')
+            cell.grid(row=r, column=1, sticky='e', pady=4)
+            if tag:
+                self.tag(cell, *tag).pack_configure(side='right', padx=(6, 0))
+            if value:
+                ttk.Label(cell, text=value, style='Card.Bold.TLabel').pack(side='right')
+        return grid
+
+    def score_panel(self, left, right, run_dir, name, ref, cached=None, on_row=None):
+        """Score rows in the text column and the bar chart in the panel; the score runs in a worker."""
+        waiting = self.label(left, 'Scoring… (a few seconds)', 'Card.Muted.TLabel', 320, pady=(16, 0))
         gen = self.gen
 
         def show(row):
-            if self.gen != gen or not holder.winfo_exists():
+            if self.gen != gen or not left.winfo_exists():
                 return
             waiting.destroy()
             if on_row:
                 on_row(row)
-            headline, numbers, explanation, warning = score_lines(row, ref.name)
-            top = ttk.Frame(holder)
-            top.pack(fill='x')
-            ttk.Label(top, text=headline, style='H2.TLabel').pack(side='left')
-            fig = Figure(figsize=(8, 2.6), facecolor=BG)
+            self.metric_rows(left, score_rows(row))
+            self.label(left, 'Fractions of the reference size (bounding-box diagonal). Lower is better.',
+                       'Card.Small.TLabel', 320, pady=(10, 0))
+            if row.get('qc_v3') != 'pass' or row.get('scale_check') == 'disagree':
+                self.label(left, 'The meshes registered less well than usual; treat the numbers with care.',
+                           'Card.Warn.TLabel', 320, pady=(10, 0))
+            ttk.Button(self.actions(left), text='Save image…', style='Card.Text.TButton',
+                       command=lambda: self.save_score_image(row, name, ref.name)).pack(side='left')
+            fig, canvas = self.figure(right, 'score', size=(8, 3))
             draw_score(fig, row, name, ref.name)
-            ttk.Button(top, text='Save image…', command=lambda: self.save_score_image(row, name, ref.name)
-                       ).pack(side='right')
-            self.label(holder, numbers, 'Big.TLabel', pady=(4, 0))
-            self.label(holder, explanation, 'Muted.TLabel', 1000, pady=(8, 0))
-            if warning:
-                self.label(holder, '⚠  ' + warning, 'Warn.TLabel', 1000, pady=(8, 0))
-            if show_figure:
-                self.figures['score'] = fig
-                canvas = FigureCanvasTkAgg(fig, master=holder)
-                canvas.get_tk_widget().configure(bg=BG, highlightthickness=0)
-                canvas.draw()
-                canvas.get_tk_widget().pack(fill='both', expand=True, pady=(12, 0))
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill='both', expand=True)
             self.log(f'score of {name} vs {ref.name}: {ps.score_text(row)}')
 
         def failed(exc):
-            if self.gen == gen and holder.winfo_exists():
-                waiting.config(text=f'The score could not be computed: {exc}', style='Error.TLabel')
+            if self.gen == gen and left.winfo_exists():
+                waiting.config(text=f'The score could not be computed: {exc}', style='Card.Error.TLabel')
 
         if cached is not None:
             return show(cached)
@@ -1377,8 +1463,8 @@ class CaptureApp:
         self.background(job)
 
     def save_score_image(self, row, name, ref_name):
-        fig = Figure(figsize=(8, 2.6), facecolor='white')
-        draw_score(fig, row, name, ref_name)
+        fig = Figure(figsize=(8, 3), facecolor='white')
+        draw_score(fig, row, name, ref_name, bg='white')
         self.save_image(fig, f'{name}-score-vs-{ref_name}')
 
     def finish(self):
@@ -1388,67 +1474,109 @@ class CaptureApp:
 
     # ------------------------------------------------------------ Open an existing build
 
-    def build_table(self, master, columns, height=12):
-        frame = ttk.Frame(master)
-        frame.pack(fill='both', expand=True, pady=(18, 0))
-        tree = ttk.Treeview(frame, columns=[c for c, _, _ in columns], show='headings', height=height,
-                            selectmode='browse')
-        for key, title, width in columns:
-            anchor = 'w' if key in ('name', 'group', 'date') else 'center'
-            tree.heading(key, text=title, anchor=anchor, command=lambda k=key: self.sort_table(tree, k))
-            tree.column(key, width=width, anchor=anchor, stretch=key == 'name')
-        scroll = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
-        tree.configure(yscrollcommand=scroll.set)
-        tree.pack(side='left', fill='both', expand=True)
+    def build_rows(self, master, builds, columns, on_open, on_select=None, selected=None, bg=SURFACE):
+        """A clean table of builds: a header and one white row per build, sortable by header.
+        columns: [(title, width or 0 to stretch, cell(build), sort_key(build))]; a cell is text,
+        ('tag', text, kind) or ('button', text, command). Click selects (or opens without on_select);
+        double-click opens."""
+        outer = tk.Frame(master, bg=bg)
+        outer.pack(fill='both', expand=True)
+        header = tk.Frame(outer, bg=bg)
+        header.pack(fill='x', padx=(4, 18))
+        canvas = tk.Canvas(outer, bg=bg, highlightthickness=0, bd=0)
+        scroll = ttk.Scrollbar(outer, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scroll.set)
         scroll.pack(side='right', fill='y')
-        return tree
+        canvas.pack(side='left', fill='both', expand=True)
+        inner = tk.Frame(canvas, bg=bg)
+        win = canvas.create_window(0, 0, window=inner, anchor='nw')
+        inner.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda e: canvas.itemconfigure(win, width=e.width))
 
-    def sort_table(self, tree, key):
-        """Click a column heading to sort by it; click again to reverse."""
-        reverse = getattr(tree, 'sorted_by', None) == key
-        tree.sorted_by = None if reverse else key
-        rows = getattr(tree, 'rows', {})
+        def wheel(e):
+            canvas.yview_scroll(-1 * (e.delta if abs(e.delta) < 20 else e.delta // 120), 'units')
+        canvas.bind('<Enter>', lambda e: canvas.bind_all('<MouseWheel>', wheel))
+        canvas.bind('<Leave>', lambda e: canvas.unbind_all('<MouseWheel>'))
 
-        def value(iid):
-            if key == 'date':
-                b = rows.get(iid)
-                return b.date.timestamp() if b is not None and b.date else 0
-            v = tree.set(iid, key)
-            try:
-                return float(v)
-            except ValueError:
-                return v.lower()
-        for i, iid in enumerate(sorted(tree.get_children(''), key=value, reverse=reverse)):
-            tree.move(iid, '', i)
+        def layout(frame):
+            for c, (_, width, _, _) in enumerate(columns):      # fixed widths include the 14px gap
+                frame.columnconfigure(c + 1, minsize=width + 14 if width else 0, weight=0 if width else 1)
+        layout(header)
+        state = {'selected': selected, 'order': list(builds), 'key': None, 'marks': {}}
+
+        def select(b):
+            state['selected'] = b
+            for key, mark in state['marks'].items():
+                mark.config(bg=INK if b is not None and key == b.key else SURFACE)
+            if on_select:
+                on_select(b)
+
+        def render():
+            for child in inner.winfo_children():
+                child.destroy()
+            state['marks'] = {}
+            for b in state['order']:
+                row = tk.Frame(inner, bg=SURFACE)
+                row.pack(fill='x', pady=(0, 1))
+                layout(row)
+                mark = tk.Frame(row, bg=SURFACE, width=3)
+                mark.grid(row=0, column=0, sticky='ns')
+                state['marks'][b.key] = mark
+                clickable = [row]
+                for c, (_, _, cell, _) in enumerate(columns):
+                    value = cell(b)
+                    if isinstance(value, tuple) and value[0] == 'tag':
+                        w = ttk.Label(row, text=value[1], style=f'Card.Tag.{value[2] or "neutral"}.TLabel',
+                                      font=self.fonts['tag'])
+                    elif isinstance(value, tuple) and value[0] == 'button':
+                        w = ttk.Button(row, text=value[1], style='Card.Text.TButton', command=value[2])
+                    else:
+                        w = tk.Label(row, text=value, bg=SURFACE, fg=INK if c == 0 else TEXT, anchor='w',
+                                     font=self.fonts['bold' if c == 0 else 'body'])
+                        clickable.append(w)
+                    w.grid(row=0, column=c + 1, sticky='w', padx=(14, 0), pady=10)
+                for w in clickable:
+                    w.bind('<Button-1>', lambda e, b=b: select(b) if on_select else on_open(b))
+                    w.bind('<Double-1>', lambda e, b=b: on_open(b))
+            select(state['selected'])
+
+        def sort(i):
+            key = columns[i][3]
+            reverse = state['key'] == i
+            state['key'] = None if reverse else i
+            state['order'].sort(key=key, reverse=reverse)
+            render()
+        for c, (title, _, _, key) in enumerate(columns):
+            h = tk.Label(header, text=title, bg=bg, fg=MUTED, font=self.fonts['small'], anchor='w', cursor='hand2')
+            h.grid(row=0, column=c + 1, sticky='w', padx=(14, 0), pady=(0, 8))
+            h.bind('<Button-1>', lambda e, c=c: sort(c))
+        render()
+        return outer
 
     def show_open(self):
         self.w = None
         self.clear()
-        bar = ttk.Frame(self.body, padding=(20, 12, 20, 0))
+        bar = ttk.Frame(self.body, padding=(40, 18, 40, 0))
         bar.pack(fill='x')
-        self.back_button = ttk.Button(bar, text='←  Start', style='Link.TButton', command=self.show_start)
+        self.back_button = ttk.Button(bar, text='←  Start', style='Text.TButton', command=self.show_start)
         self.back_button.pack(side='left')
-        content = ttk.Frame(self.body, padding=(48, 20, 48, 12))
+        ttk.Button(bar, text='Refresh', style='Text.TButton',
+                   command=lambda: (setattr(self, 'builds', None), self.show_open())).pack(side='right')
+        content = ttk.Frame(self.body, padding=(40, 8, 40, 16))
         content.pack(fill='both', expand=True)
-        head = ttk.Frame(content)
-        head.pack(fill='x')
-        ttk.Label(head, text='Open an existing build', style='H1.TLabel').pack(side='left')
-        ttk.Button(head, text='Refresh', command=lambda: (setattr(self, 'builds', None), self.show_open())
-                   ).pack(side='right')
-        self.label(content, 'Builds in the results folder and in your builds folder. Double-click to open.',
-                   'Muted.TLabel', pady=(6, 0))
-        tree = self.build_table(content, [('name', 'Name', 360), ('group', 'Location', 220), ('photos', 'Photos', 90),
-                                          ('mesh', 'Mesh', 70), ('date', 'Date', 140)], height=14)
-        nav = ttk.Frame(self.body, padding=(32, 0, 32, 16))
+        ttk.Label(content, text='Builds', style='H1.TLabel').pack(anchor='w')
+        self.open_count = self.label(content, '', 'Muted.TLabel', pady=(4, 16))
+        self.open_card = ttk.Frame(content, style='Card.TFrame', padding=(16, 20, 16, 12))
+        self.open_card.pack(fill='both', expand=True)
+        nav = ttk.Frame(self.body, padding=(40, 0, 40, 22))
         nav.pack(fill='x', side='bottom', before=content)
-        self.next_button = ttk.Button(nav, text='Open', style='Accent.TButton', state='disabled',
-                                      command=lambda: self.open_pick(tree))
+        self.open_selected = None
+        self.next_button = ttk.Button(nav, text='Open', style='Primary.TButton', state='disabled',
+                                      command=lambda: self.open_pick())
         self.next_button.pack(side='right')
-        tree.bind('<<TreeviewSelect>>', lambda e: self.next_button.config(state='normal' if tree.selection() else 'disabled'))
-        tree.bind('<Double-1>', lambda e: self.open_pick(tree))
-        self.open_tree = tree
         if self.builds is None:
-            waiting = self.label(content, 'Looking for builds…', 'Muted.TLabel', pady=(10, 0))
+            waiting = ttk.Label(self.open_card, text='Looking for builds…', style='Card.Muted.TLabel')
+            waiting.pack(anchor='w', padx=14)
             roots = [REPO / 'results', self.runs_folder]
             gen = self.gen
 
@@ -1456,32 +1584,38 @@ class CaptureApp:
                 self.builds = builds
                 if self.gen == gen:
                     waiting.destroy()
-                    self.fill_open(tree)
+                    self.fill_open()
 
             self.background(lambda: self.post(found, bl.find_builds(roots)))
         else:
-            self.fill_open(tree)
-        tree.focus_set()
+            self.fill_open()
 
-    def fill_open(self, tree):
-        self.open_rows = {}
-        for b in self.builds:
-            iid = tree.insert('', 'end', values=(b.name, b.group, b.photo_count, '✓' if b.has_mesh else '–',
-                                                 date_text(b.date)))
-            self.open_rows[iid] = b
-        tree.rows = self.open_rows
-        if not self.builds:
-            tree.insert('', 'end', values=('No builds found', '', '', '', ''))
-        else:
-            first = tree.get_children('')[0]
-            tree.selection_set(first)
-            tree.focus(first)
+    def fill_open(self):
+        builds = self.builds or []
+        self.open_count.config(text=f'{len(builds)} builds in results/ and {self.runs_folder.name}/. '
+                                    'Double-click to open.')
+        if not builds:
+            ttk.Label(self.open_card, text='No builds found.', style='Card.Muted.TLabel').pack(anchor='w', padx=14)
+            return
 
-    def open_pick(self, tree):
-        sel = tree.selection()
-        build = self.open_rows.get(sel[0]) if sel else None
-        if build is not None:
-            self.show_result(build)
+        def picked(b):
+            self.open_selected = b
+            if self.next_button is not None and self.next_button.winfo_exists():
+                self.next_button.config(state='normal')
+        self.build_rows(self.open_card, builds, [
+            ('Build', 0, lambda b: b.name, lambda b: b.name.lower()),
+            ('Location', 220, lambda b: b.group, lambda b: b.group.lower()),
+            ('Photos', 80, lambda b: str(b.photo_count), lambda b: b.photo_count),
+            ('Date', 120, lambda b: date_text(b.date), lambda b: b.date.timestamp() if b.date else 0),
+            ('Status', 130, lambda b: ('tag', 'Mesh', 'good') if b.has_mesh else ('tag', 'Cameras only', ''),
+             lambda b: b.has_mesh),
+            ('', 90, lambda b: ('button', '3D view', lambda: self.export_3d(b.mesh or b.path, None, True)),
+             lambda b: 0)],
+            on_open=self.show_result, on_select=picked, selected=builds[0])
+
+    def open_pick(self):
+        if self.open_selected is not None:
+            self.show_result(self.open_selected)
 
     def show_result(self, build, ref='default'):
         self.w = None
@@ -1489,42 +1623,44 @@ class CaptureApp:
         builds = self.builds or []
         if ref == 'default':
             ref = bl.default_reference(build, builds)
-        bar = ttk.Frame(self.body, padding=(20, 12, 20, 0))
+        bar = ttk.Frame(self.body, padding=(40, 18, 40, 0))
         bar.pack(fill='x')
-        self.back_button = ttk.Button(bar, text='←  All builds', style='Link.TButton', command=self.show_open)
+        self.back_button = ttk.Button(bar, text='←  Builds', style='Text.TButton', command=self.show_open)
         self.back_button.pack(side='left')
-        content = ttk.Frame(self.body, padding=(48, 14, 48, 12))
+        content = ttk.Frame(self.body, padding=(40, 8, 40, 16))
         content.pack(fill='both', expand=True)
         head = ttk.Frame(content)
         head.pack(fill='x')
         ttk.Label(head, text=build.name, style='H1.TLabel').pack(side='left')
-        ttk.Label(head, text=f'{build.group}  ·  {build.photo_count} photos  ·  mesh {"✓" if build.has_mesh else "–"}'
-                             f'  ·  {date_text(build.date)}', style='Muted.TLabel').pack(side='left', padx=20)
+        tags = ttk.Frame(head)
+        tags.pack(side='left', padx=(16, 0), pady=(6, 0))
+        self.tag(tags, 'Mesh' if build.has_mesh else 'Cameras only', 'good' if build.has_mesh else '', card=False)
+        self.label(content, f'{build.group}  ·  {build.photo_count} photos  ·  {date_text(build.date)}',
+                   'Muted.TLabel', pady=(4, 0))
 
-        options = [(None, 'Nothing (this build alone)')]
-        options += [(b, f'{b.name}  ({b.group}, shares {n} photos{", mesh" if b.has_mesh else ""})')
+        options = [(None, 'None (this build alone)')]
+        options += [(b, f'{b.name}  ({b.group} · {n} shared photos{" · mesh" if b.has_mesh else ""})')
                     for b, n in bl.compatible_builds(build.photos, builds, exclude=build)]
         row = ttk.Frame(content)
-        row.pack(fill='x', pady=(12, 0))
-        ttk.Label(row, text='Compare with:').pack(side='left')
+        row.pack(fill='x', pady=(14, 16))
+        ttk.Label(row, text='Reference', style='Muted.TLabel').pack(side='left')
         names = [t for _, t in options]
         var = tk.StringVar(value=next((t for b, t in options if b is ref), names[0]))
-        box = ttk.Combobox(row, textvariable=var, values=names, state='readonly', width=56, font=self.fonts['body'])
-        box.pack(side='left', padx=10)
+        box = ttk.Combobox(row, textvariable=var, values=names, state='readonly', width=58, font=self.fonts['body'])
+        box.pack(side='left', padx=12)
         box.bind('<<ComboboxSelected>>',
                  lambda e: self.show_result(build, next(b for b, t in options if t == var.get())))
         if len(options) == 1:
             box.config(state='disabled')
-            ttk.Label(row, text='(no other build shares photos with this one)', style='Small.TLabel').pack(side='left')
+            ttk.Label(row, text='No other build shares photos with this one.', style='Small.TLabel').pack(side='left')
 
-        score_card = ttk.Frame(content, style='Card.TFrame', padding=16)
-        score_card.pack(fill='x', side='bottom', pady=(10, 0))
-        cov_box = ttk.Frame(content)
-        cov_box.pack(fill='both', expand=True, pady=(8, 0))
-        self.coverage_panel(cov_box, build.path, build.name, ref)
+        score_card = ttk.Frame(content, style='Card.TFrame', padding=(28, 18))
+        score_card.pack(fill='x', side='bottom', pady=(16, 0))
+        left, right = self.card(content)
+        ttk.Label(left, text='Coverage', style='Card.H2.TLabel').pack(anchor='w')
+        self.coverage_panel(left, right, build.path, build.name, ref, primary='Open 3D view')
         if ref is None:
-            ttk.Label(score_card, text='No score: choose a build to compare with.', style='Card.Muted.TLabel'
-                      ).pack(anchor='w')
+            ttk.Label(score_card, text='No score: choose a reference build.', style='Card.Muted.TLabel').pack(anchor='w')
         elif not build.has_mesh or not ref.has_mesh:
             missing = build.name if not build.has_mesh else ref.name
             ttk.Label(score_card, text=f'No score: {missing} has no mesh.', style='Card.Muted.TLabel').pack(anchor='w')
@@ -1532,7 +1668,7 @@ class CaptureApp:
             self.result_score(score_card, build, ref)
 
     def result_score(self, card, build, ref):
-        """Compact score block on the card: headline, numbers, explanation, Save image…"""
+        """One row on the score card: the v3 numbers as labeled values, tags, and Save image…"""
         waiting = ttk.Label(card, text='Scoring… (a few seconds)', style='Card.Muted.TLabel')
         waiting.pack(anchor='w')
         gen = self.gen
@@ -1541,18 +1677,25 @@ class CaptureApp:
             if self.gen != gen or not card.winfo_exists():
                 return
             waiting.destroy()
-            headline, numbers, explanation, warning = score_lines(row, ref.name)
-            top = ttk.Frame(card, style='Card.TFrame')
-            top.pack(fill='x')
-            ttk.Label(top, text=headline, style='Card.H2.TLabel').pack(side='left')
-            ttk.Label(top, text=numbers, style='Card.Big.TLabel').pack(side='left', padx=24)
-            ttk.Button(top, text='Save image…', command=lambda: self.save_score_image(row, build.name, ref.name)
-                       ).pack(side='right')
-            ttk.Label(card, text=explanation, style='Card.Muted.TLabel', wraplength=1050, justify='left'
-                      ).pack(anchor='w', pady=(6, 0))
-            if warning:
-                ttk.Label(card, text='⚠  ' + warning, style='Card.Warn.TLabel', wraplength=1050, justify='left'
-                          ).pack(anchor='w', pady=(4, 0))
+            line = ttk.Frame(card, style='In.TFrame')
+            line.pack(fill='x')
+            ttk.Label(line, text='Score', style='Card.H2.TLabel').pack(side='left', padx=(0, 28))
+            for name, value, tag in score_rows(row):
+                cell = ttk.Frame(line, style='In.TFrame')
+                cell.pack(side='left', padx=(0, 28))
+                ttk.Label(cell, text=name, style='Card.Small.TLabel').pack(anchor='w')
+                val = ttk.Frame(cell, style='In.TFrame')
+                val.pack(anchor='w')
+                if value:
+                    ttk.Label(val, text=value, style='Card.Bold.TLabel').pack(side='left', padx=(0, 6))
+                if tag:
+                    self.tag(val, *tag)
+            ttk.Button(line, text='Save image…', style='Card.Text.TButton',
+                       command=lambda: self.save_score_image(row, build.name, ref.name)).pack(side='right')
+            note = f'vs {ref.name} · fractions of the reference size (bounding-box diagonal) · lower is better'
+            if row.get('qc_v3') != 'pass' or row.get('scale_check') == 'disagree':
+                note += ' · registered less well than usual: treat with care'
+            ttk.Label(card, text=note, style='Card.Small.TLabel').pack(anchor='w', pady=(8, 0))
             self.log(f'score of {build.name} vs {ref.name}: {ps.score_text(row)}')
 
         def failed(exc):

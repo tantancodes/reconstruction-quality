@@ -1,0 +1,23 @@
+/* BD3D design tokens: the single source for the web viewer (viewer/index.html) and the capture app
+   (coverage_app.py reads this file through bd3d_quality.theme). One value per line, so the app
+   can parse it. Color only means state: red = problem, green = good, amber = caution. */
+:root {
+  --page: #f5f4f0;       /* window / page background */
+  --card: #ffffff;       /* cards */
+  --line: #e6e4de;       /* 1px card borders, rules */
+  --panel: #ebeae5;      /* the visual area inside a card (3D view, charts) */
+  --ink: #111111;        /* headings, primary button */
+  --text: #2b2b28;       /* body text */
+  --text-2: #6b6b66;     /* secondary text */
+  --camera: #4a4a46;     /* cameras that were used */
+  --mesh: #d6d4ce;       /* the reconstructed surface */
+  --red: #d93a2b;        /* problem */
+  --red-soft: #fbe4e1;   /* problem tag background */
+  --green: #2f9e5a;      /* good */
+  --green-soft: #e1f2e7; /* good tag background */
+  --amber: #b7791f;      /* caution */
+  --amber-soft: #f8edd9; /* caution tag background */
+  --neutral-soft: #efeee9; /* neutral tag background */
+  --radius: 16px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+}

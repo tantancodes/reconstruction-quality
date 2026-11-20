@@ -41,9 +41,11 @@ server. `?object=<name>` picks an export; the drop-down lists everything in
   of the reference bounding-box diagonal).
 - **Surface error**: the candidate coloured by its distance to the reference surface, saturating
   at 2% of the diagonal.
-- **Cameras**: solid grey = used, dashed = removed for this run, red = failed to align.
+- **Cameras**: dark grey = used, red dashed = removed for this build, solid red = failed to align.
 - **Coverage**: azimuth × elevation cells from `coverage.compare` (or `coverage.analyze` with no
   reference). Red cells have fewer than 2 cameras (where the reference has 2 or more).
 - **Save PNG** writes the current view at screen resolution for figures.
+
+Colours, font and radius come from `viewer/tokens.css`, which the capture app also reads (`bd3d_quality.theme`).
 
 The exported data (`viewer/data/`) comes from meshes that are not in git, so it is ignored too.

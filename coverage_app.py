@@ -37,6 +37,7 @@ from bd3d_quality import builds as bl
 from bd3d_quality import metashape_locator as ml
 from bd3d_quality import pipeline_steps as ps
 from bd3d_quality import quality_model as qm
+from bd3d_quality import viewer_export as vx
 from bd3d_quality.coverage import BAND_NAMES, analyze, compare, load_cameras
 from bd3d_quality.progress import Progress, StageTracker
 
@@ -1114,6 +1115,8 @@ class CaptureApp:
         canvas.draw()
         ttk.Button(bottom, text='Save image…', command=lambda: self.save_image(fig, f'{name}-coverage')
                    ).pack(side='right', anchor='n')
+        ttk.Button(bottom, text='3D view', command=lambda: self.export_3d(run_dir, self.mesh_of(ref, run_dir), True)
+                   ).pack(side='right', anchor='n', padx=(0, 10))
         canvas.get_tk_widget().pack(fill='both', expand=True, pady=(8, 0))
         self.log(f'coverage of {name}' + (f' vs {ref_name}' if ref_name else '') + f': {text}')
 
@@ -1190,6 +1193,9 @@ class CaptureApp:
             return
         if state == 'done':
             self.label(box, '✓  Mesh built.', 'H2.TLabel')
+            ttk.Button(box, text='Open 3D view',
+                       command=lambda: self.export_3d(w.mesh_run, self.mesh_of(w.compare, w.mesh_run), True)
+                       ).pack(anchor='w', pady=(12, 0))
             if to_score and not w.compare.has_mesh:
                 self.label(box, f'{w.compare.name} has no mesh, so there is nothing to score against.',
                            'Muted.TLabel', pady=(6, 0))
@@ -1262,10 +1268,39 @@ class CaptureApp:
         if ok:
             w.mesh_run, w.score = mesh_run, None
             self.builds = None
+            self.export_3d(mesh_run, self.mesh_of(w.compare, mesh_run))   # ready for "3D view"
         if self.w is w and w.step == 'Mesh':
             self.step_mesh()
         if w.status['Mesh'] == 'failed':
             self.error('The mesh did not finish', w.outcome['Mesh'])
+
+    # ------------------------------------------------------------ 3D view (viewer/index.html)
+
+    @staticmethod
+    def mesh_of(ref, run_dir):
+        """The reference build's mesh folder, when both it and run_dir have a mesh; else None (view alone)."""
+        if ref is None or not ref.has_mesh or not (Path(run_dir) / 'raw-mesh.obj').is_file():
+            return None
+        return ref.mesh
+
+    def export_3d(self, run_dir, ref_dir=None, open_after=False):
+        """Write the web viewer's data for run_dir in a worker (against ref_dir's mesh when given),
+        then open it in the browser if asked. Without a reference the build is shown on its own."""
+        run_dir = Path(run_dir)
+        what = f'{run_dir.name}' + (f' vs {Path(ref_dir).name}' if ref_dir else '')
+        self.log(f'3D view: preparing {what} …')
+
+        def job():
+            try:
+                out = vx.export_build(run_dir, ref_dir, log=lambda t: self.post(self.log, t))
+            except Exception as exc:
+                self.post(self.log, f'3D view: export of {what} failed: {exc}')
+                if open_after:
+                    self.post(self.error, 'The 3D view could not be prepared', exc)
+                return
+            if open_after:
+                self.post(self.log, f'3D view: {vx.open_viewer(out.name)}')
+        self.background(job)
 
     # ------------------------------------------------------------ 6 Score
 

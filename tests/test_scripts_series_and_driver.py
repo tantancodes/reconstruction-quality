@@ -95,9 +95,10 @@ def test_watchdog_stop_wins_over_alignment_message():
     assert rw.classify(res('stopped_or_failed', 'timeout'), r) == 'watchdog_stop'
 
 
-def driver(tmp_path, monkeypatch, outcomes):
-    """Run run_watched.main with attempt() and the license check replaced by fakes."""
+def driver(tmp_path, monkeypatch, outcomes, exported=None):
+    """Run run_watched.main with attempt(), the license check and the viewer export replaced by fakes."""
     calls = []
+    exported = [] if exported is None else exported
 
     def fake_attempt(manifest, out, a):
         calls.append(out.name)
@@ -105,6 +106,7 @@ def driver(tmp_path, monkeypatch, outcomes):
 
     monkeypatch.setattr(rw, 'attempt', fake_attempt)
     monkeypatch.setattr(rw, 'license_preflight', lambda path: True)
+    monkeypatch.setattr(rw, 'export_viewer', lambda out, a: exported.append(out.name))
     monkeypatch.setattr(rw.time, 'sleep', lambda s: None)
     manifests = []
     for name in outcomes:
@@ -136,3 +138,20 @@ def test_other_failure_still_stops_the_driver(tmp_path, monkeypatch):
     calls, code = driver(tmp_path, monkeypatch, {'a': 'failed', 'b': 'ok'})
     assert calls == ['a']
     assert code == 2
+
+
+def test_viewer_export_follows_each_successful_run_only(tmp_path, monkeypatch):
+    exported = []
+    calls, code = driver(tmp_path, monkeypatch, {'a': 'ok', 'b': 'alignment_failed', 'c': 'ok'}, exported)
+    assert exported == ['a', 'c']
+    assert code == 0
+
+
+def test_failed_viewer_export_does_not_stop_the_driver(tmp_path, monkeypatch, capsys):
+    out = tmp_path / 'out'
+    out.mkdir()
+    (out / 'a').mkdir()   # no cameras.csv: the export fails
+    a = rw.argparse.Namespace(no_viewer=False, viewer_reference=None)
+    rw.export_viewer(out / 'a', a)
+    assert 'viewer export failed' in capsys.readouterr().out
+    assert (out / 'a-viewer.log').is_file()

@@ -50,3 +50,6 @@ notebooks/.ipynb_checkpoints/
 
 # experimental quality models for the capture app (rebuild: python scripts/build_quality_models.py)
 models/
+
+# web viewer exports (rebuild: python scripts/export_viewer.py, see viewer/README.md)
+viewer/data/

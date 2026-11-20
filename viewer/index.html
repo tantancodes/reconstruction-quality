@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BD3D Reconstruction Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: a quiet specimen sheet. A narrow text column on the left, the object on open white
+   paper to the right, separated by one hairline. Ink for everything; vermilion only for problems
+   (missing geometry, surface error, coverage gaps, cameras that failed to align). */
+:root {
+  color-scheme: light;
+  --paper: #ffffff;
+  --ink: #1d1d1b;          /* text, used cameras */
+  --ink-2: #5f5e5a;        /* secondary text */
+  --mute: #9b9994;         /* captions, removed cameras */
+  --hair: #e6e4df;         /* rules, grid */
+  --clay: #dcd9d2;         /* the reconstructed surface */
+  --shu: #c8372d;          /* vermilion: errors and gaps only */
+  --font: "Noto Sans JP", "Hiragino Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 300 13px/1.65 var(--font); font-variant-numeric: tabular-nums;
+  display: grid; grid-template-columns: 320px 1fr; overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- text column */
+.col {
+  border-right: 1px solid var(--hair); overflow-y: auto;
+  padding: 40px 32px 32px; display: flex; flex-direction: column; gap: 32px;
+}
+.kicker { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); font-weight: 400; }
+h1 { font-weight: 300; font-size: 22px; line-height: 1.3; margin: 10px 0 0; letter-spacing: .01em; text-wrap: balance; }
+.lede { color: var(--ink-2); margin: 12px 0 0; }
+h2 { font-weight: 400; font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); margin: 0 0 12px; }
+select {
+  font: inherit; color: var(--ink); background: var(--paper); border: 0; border-bottom: 1px solid var(--hair);
+  padding: 4px 0; width: 100%; margin-top: 14px; border-radius: 0; cursor: pointer;
+}
+
+.runs { display: grid; }
+.run {
+  all: unset; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px;
+  padding: 9px 0 9px 12px; border-top: 1px solid var(--hair); position: relative;
+}
+.run:last-child { border-bottom: 1px solid var(--hair); }
+.run::before { content: ""; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: transparent; }
+.run[aria-pressed="true"]::before { background: var(--ink); }
+.run[aria-pressed="true"] .name { font-weight: 500; }
+.run:hover .name { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.run:focus-visible { outline: 1px solid var(--ink); outline-offset: 2px; }
+.run .name { color: var(--ink); }
+.run .meta { color: var(--mute); font-size: 11.5px; grid-column: 1; }
+.run .err { grid-row: 1 / span 2; grid-column: 2; align-self: center; color: var(--ink-2); }
+
+dl { display: grid; grid-template-columns: 1fr auto; margin: 0; }
+dt, dd { margin: 0; padding: 6px 0; border-top: 1px solid var(--hair); }
+dt { color: var(--ink-2); }
+dd { text-align: right; color: var(--ink); font-weight: 400; }
+dd small { color: var(--mute); font-size: 11px; font-weight: 300; }
+dl > :nth-last-child(-n+2) { border-bottom: 1px solid var(--hair); }
+
+.note { color: var(--ink-2); margin: 0; padding-left: 12px; border-left: 1px solid var(--shu); }
+
+#polar { width: 100%; height: auto; display: block; max-width: 256px; margin: 0 auto; }
+.caption { color: var(--mute); font-size: 11.5px; margin: 10px 0 0; }
+.caption em { font-style: normal; color: var(--shu); }
+
+.layers { display: grid; gap: 7px; }
+.layer { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; cursor: pointer; }
+.layer input { position: absolute; opacity: 0; pointer-events: none; }
+.layer .box { width: 11px; height: 11px; border: 1px solid var(--mute); }
+.layer input:checked + .box { background: var(--k, var(--ink)); border-color: var(--k, var(--ink)); }
+.layer input:focus-visible + .box { outline: 1px solid var(--ink); outline-offset: 2px; }
+.layer .hint { color: var(--mute); font-size: 11px; }
+.slider { display: grid; gap: 4px; margin-top: 10px; }
+.slider label { display: flex; justify-content: space-between; color: var(--ink-2); }
+.slider output { color: var(--ink); }
+input[type=range] { width: 100%; accent-color: var(--ink); margin: 4px 0; }
+.scale { height: 3px; background: linear-gradient(90deg, var(--clay), var(--shu)); margin-top: 8px; }
+.scale-row { display: flex; justify-content: space-between; color: var(--mute); font-size: 11px; }
+
+.foot { color: var(--mute); font-size: 11px; margin-top: auto; }
+
+/* ---------------------------------------------------------------- stage */
+.stage { position: relative; min-width: 0; }
+#gl { position: absolute; inset: 0; }
+#gl canvas { display: block; outline: none; }
+.tools { position: absolute; top: 20px; right: 24px; display: flex; gap: 18px; }
+.tools button {
+  all: unset; cursor: pointer; color: var(--ink-2); font-size: 11.5px; letter-spacing: .06em; padding: 2px 0;
+  border-bottom: 1px solid transparent;
+}
+.tools button:hover, .tools button:focus-visible { color: var(--ink); border-bottom-color: var(--ink); }
+.legend { position: absolute; left: 28px; bottom: 22px; display: flex; gap: 18px; flex-wrap: wrap; color: var(--ink-2); font-size: 11.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 1px solid var(--k); }
+.legend i.dash { border-top-style: dashed; }
+.legend i.fill { height: 8px; border: 0; background: var(--k); width: 10px; }
+.orbit { position: absolute; right: 24px; bottom: 22px; color: var(--mute); font-size: 11px; }
+#tip {
+  position: fixed; pointer-events: none; padding: 4px 8px; font-size: 11.5px; background: var(--paper);
+  border: 1px solid var(--hair); transform: translate(12px, 12px); display: none; color: var(--ink);
+}
+#loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); padding: 0 24px; text-align: center; }
+
+@media (max-width: 760px) {
+  body { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
+  .stage { grid-row: 1; }
+  .col { grid-row: 2; border-right: 0; border-top: 1px solid var(--hair); padding: 24px 16px; }
+  .orbit, .legend { display: none; }
+  .tools { right: 16px; top: 12px; gap: 14px; }
+}
+@media print { .tools, .orbit { display: none; } }
+</style>
+</head>
+<body>
+<aside class="col" aria-label="Run details">
+  <header>
+    <div class="kicker">BD3D · Reconstruction quality</div>
+    <h1 id="title">Loading</h1>
+    <p class="lede" id="lede"></p>
+    <select id="object" aria-label="Exported object" hidden></select>
+  </header>
+
+  <section id="runs-section" hidden>
+    <h2>Runs, lowest error first</h2>
+    <div class="runs" id="runs"></div>
+  </section>
+
+  <section>
+    <h2>Measurements</h2>
+    <dl id="stats" aria-live="polite"></dl>
+  </section>
+  <p class="note" id="note" hidden></p>
+
+  <section aria-label="Camera coverage, seen from above">
+    <h2>Coverage, seen from above</h2>
+    <svg id="polar" viewBox="-124 -124 248 248" role="img" aria-label="Top-down camera coverage"></svg>
+    <p class="caption" id="gaps"></p>
+  </section>
+
+  <section>
+    <h2>Layers</h2>
+    <form class="layers" id="layers">
+      <label class="layer"><input type="checkbox" id="t-model" checked><span class="box"></span><span>Reconstruction</span><span class="hint">mesh</span></label>
+      <label class="layer" data-needs="ref" style="--k: var(--shu)"><input type="checkbox" id="t-missing" checked><span class="box"></span><span>Missing geometry</span><span class="hint">vs reference</span></label>
+      <label class="layer" data-needs="ref" style="--k: var(--shu)"><input type="checkbox" id="t-error"><span class="box"></span><span>Surface error</span><span class="hint">vs reference</span></label>
+      <label class="layer"><input type="checkbox" id="t-cams" checked><span class="box"></span><span>Cameras</span><span class="hint">frusta</span></label>
+      <label class="layer"><input type="checkbox" id="t-shell"><span class="box"></span><span>Coverage shell</span><span class="hint">az × el</span></label>
+      <div class="slider" data-needs="ref">
+        <label for="thresh">Show gaps deeper than <output id="thresh-out">1.0%</output></label>
+        <input type="range" id="thresh" min="0.2" max="4" step="0.1" value="1">
+        <div class="scale-row"><span>% of reference diagonal</span><span id="missing-share"></span></div>
+      </div>
+      <div id="error-legend" hidden>
+        <div class="scale"></div>
+        <div class="scale-row"><span>0</span><span>≥ 2% of diagonal</span></div>
+      </div>
+    </form>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</aside>
+
+<main class="stage">
+  <div id="gl"></div>
+  <div class="tools" role="toolbar" aria-label="View">
+    <button type="button" data-view="0,12">Az 0°</button>
+    <button type="button" data-view="90,12">Az 90°</button>
+    <button type="button" data-view="0,89">Top</button>
+    <button type="button" data-view="reset">Reset</button>
+    <button type="button" id="save">Save PNG</button>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="orbit">Drag to orbit · scroll to zoom · hover a camera</div>
+  <div id="loading">Loading…</div>
+</main>
+<div id="tip"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { ink: css('--ink'), ink2: css('--ink-2'), mute: css('--mute'), hair: css('--hair'), clay: css('--clay'), shu: css('--shu') };
+
+// ---------------------------------------------------------------- which export
+let DATA, objectName;
+async function pickObject() {
+  const asked = new URLSearchParams(location.search).get('object') || decodeURIComponent(location.hash.slice(1));
+  let listing = [];
+  try { listing = await (await fetch(new URL('data/index.json', location.href), { cache: 'no-store' })).json(); } catch {}
+  objectName = asked || (listing[0] && listing[0].name) || 'pahma-5-613';
+  if (listing.length > 1) {
+    const sel = $('object');
+    for (const o of listing) {
+      const opt = new Option(`${o.title}${o.mode === 'build' ? ' · build' : ''}`, o.name, false, o.name === objectName);
+      sel.add(opt);
+    }
+    sel.hidden = false;
+    sel.addEventListener('change', () => { location.search = '?object=' + encodeURIComponent(sel.value); });
+  }
+  DATA = new URL(`data/${encodeURIComponent(objectName)}/`, location.href);
+}
+
+// Names for the experiment conditions (README: random subset, contiguous side, elevation band).
+function describe(id) {
+  let m;
+  if ((m = id.match(/^random(\d+)/))) return [`Random ${m[1]} photos`, 'random subset'];
+  if ((m = id.match(/^side(\d+)/))) return ['Side removed', `contiguous side, ${m[1]}% target`];
+  if ((m = id.match(/^drop_s(\d+)/))) return [`Band ${m[1]} dropped`, 'elevation band removed'];
+  if (id.startsWith('ref')) return ['Full capture', 'reference'];
+  return [id, ''];
+}
+const pct = (x, d = 1) => x == null ? '—' : (x * 100).toFixed(d) + '%';
+const fixed = (x, d, unit = '') => x == null ? '—' : x.toFixed(d) + unit;
+const int = x => x == null ? '—' : Math.round(x).toLocaleString('en-US');
+const mins = s => s == null ? '—' : s < 90 ? `${s.toFixed(0)} s` : `${(s / 60).toFixed(0)} min`;
+
+// ---------------------------------------------------------------- renderer
+const gl = $('gl');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(css('--paper'), 1);
+gl.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+controls.dampingFactor = 0.1;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b4ac, 1.6));
+const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(1.2, 2.0, 1.4); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45); fill.position.set(-1.6, 0.4, -1.0); scene.add(fill);
+
+function resize() {
+  const w = gl.clientWidth, h = gl.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(gl);
+
+// ---------------------------------------------------------------- data
+// Meshes ship as .bin; hosts that refuse .bin get the same bytes as a base64 JSON string (.b64.json).
+async function bin(file) {
+  const r = await fetch(new URL(file, DATA));
+  if (r.ok) return r.arrayBuffer();
+  const j = await fetch(new URL(file + '.b64.json', DATA));
+  if (!j.ok) throw new Error(`${file}: ${r.status}`);
+  const s = atob(await j.json()), out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out.buffer;
+}
+const view = (buf, b) => new ({ uint16: Uint16Array, uint32: Uint32Array, uint8: Uint8Array }[b.type])(buf, b.offset, b.count);
+
+let S, lo, span, hasRef;
+function geometryFrom(buf, buffers) {
+  const q = view(buf, buffers.positions), pos = new Float32Array(q.length);
+  for (let i = 0; i < q.length; i++) { const a = i % 3; pos[i] = lo[a] + q[i] / 65535 * span[a]; }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(view(buf, buffers.indices), 1));
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---------------------------------------------------------------- materials
+const CLAY = new THREE.Color(C.clay), SHU = new THREE.Color(C.shu);
+const modelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0,
+  polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+
+// Reference surface drawn only where this run lost it: flat vermilion, lightly shaded so the shape reads.
+const missingMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+  uniforms: { uThresh: { value: 0.2 }, uColor: { value: SHU.clone() } },
+  vertexShader: `
+    attribute float missing; varying float vM; varying vec3 vN;
+    void main() {
+      vM = missing; vN = normalize(normalMatrix * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform float uThresh; uniform vec3 uColor; varying float vM; varying vec3 vN;
+    void main() {
+      if (vM < uThresh) discard;
+      float depth = clamp((vM - uThresh) / max(1.0 - uThresh, 1e-3), 0.0, 1.0);
+      float shade = 0.78 + 0.22 * abs(normalize(vN).z);
+      gl_FragColor = vec4(uColor * shade, 0.55 + 0.4 * depth);
+      #include <colorspace_fragment>
+    }`,
+});
+
+// ---------------------------------------------------------------- build
+let refGeom, missingMesh, model, camGroup, shellGroup, pointCloud, ground;
+const runCache = new Map();
+let current, homeView;
+
+function frustums(indices, color, opacity, size, dashed) {
+  const P = S.camera_positions, V = S.camera_views, pts = [], up = new THREE.Vector3(0, 1, 0);
+  for (const i of indices) {
+    const p = new THREE.Vector3(...P[i]), v = new THREE.Vector3(...V[i]).normalize();
+    const side = Math.abs(v.dot(up)) > 0.98 ? new THREE.Vector3(1, 0, 0) : up;
+    const r = new THREE.Vector3().crossVectors(v, side).normalize().multiplyScalar(size * 0.75);
+    const u = new THREE.Vector3().crossVectors(r, v).normalize().multiplyScalar(size * 0.5);
+    const c = p.clone().addScaledVector(v, size * 1.3);
+    const k = [c.clone().add(r).add(u), c.clone().sub(r).add(u), c.clone().sub(r).sub(u), c.clone().add(r).sub(u)];
+    for (const q of k) pts.push(p, q);
+    for (let j = 0; j < 4; j++) pts.push(k[j], k[(j + 1) % 4]);
+  }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = dashed
+    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: size * 0.18, gapSize: size * 0.14 })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const l = new THREE.LineSegments(g, mat);
+  if (dashed) l.computeLineDistances();
+  return l;
+}
+
+function shellPatch(az0, az1, el0, el1, R) {
+  const pts = [], idx = [], na = 10, ne = 4;
+  for (let i = 0; i <= ne; i++) for (let j = 0; j <= na; j++) {
+    const el = THREE.MathUtils.degToRad(el0 + (el1 - el0) * i / ne), az = THREE.MathUtils.degToRad(az0 + (az1 - az0) * j / na);
+    pts.push(R * Math.cos(el) * Math.cos(az), R * Math.sin(el), -R * Math.cos(el) * Math.sin(az));
+  }
+  for (let i = 0; i < ne; i++) for (let j = 0; j < na; j++) {
+    const a = i * (na + 1) + j, b = a + na + 1; idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.setIndex(idx);
+  return g;
+}
+
+const dispose = grp => grp && (scene.remove(grp), grp.traverse(o => { o.geometry?.dispose(); o.material?.dispose?.(); }));
+const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+
+function buildShell(run) {
+  dispose(shellGroup);
+  shellGroup = new THREE.Group();
+  const { az_edges: az, el_edges: el } = S.grid, cov = run.coverage;
+  const R = median(S.camera_positions.map(p => Math.hypot(...p))) * 1.12, gap = 0.5;
+  for (let b = 0; b < el.length - 1; b++) for (let a = 0; a < az.length - 1; a++) {
+    const miss = cov.missing[b][a], never = cov.never[b][a];
+    if (never) continue;
+    const g = shellPatch(az[a] + gap, az[a + 1] - gap, el[b] + gap, el[b + 1] - gap, R);
+    const color = miss ? C.shu : C.mute;
+    if (miss) shellGroup.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false })));
+    shellGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: miss ? 0.6 : 0.25 })));
+  }
+  shellGroup.visible = $('t-shell').checked;
+  scene.add(shellGroup);
+}
+
+const stateName = { used: 'used', removed: 'removed for this run', unaligned: 'failed to align' };
+function buildCameras(run) {
+  dispose(camGroup);
+  camGroup = new THREE.Group();
+  const by = { used: [], removed: [], unaligned: [] };
+  run.cameras.forEach((s, i) => by[s].push(i));
+  const size = 0.022;
+  camGroup.add(frustums(by.used, C.ink2, 0.55, size));
+  camGroup.add(frustums(by.removed, C.mute, 0.6, size, true));
+  camGroup.add(frustums(by.unaligned, C.shu, 0.95, size));
+  const pos = [], col = [];
+  run.cameras.forEach((s, i) => {
+    pos.push(...S.camera_positions[i]);
+    new THREE.Color(s === 'used' ? C.ink : s === 'removed' ? C.mute : C.shu).toArray(col, col.length);
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  pointCloud = new THREE.Points(g, new THREE.PointsMaterial({ size: 3, sizeAttenuation: false, vertexColors: true }));
+  camGroup.add(pointCloud);
+  camGroup.visible = $('t-cams').checked;
+  scene.add(camGroup);
+}
+
+async function loadRun(run) {
+  if (!run.file) return null;
+  if (runCache.has(run.id)) return runCache.get(run.id);
+  const p = bin(run.file).then(buf => {
+    const g = geometryFrom(buf, run.buffers), n = g.getAttribute('position').count;
+    const base = new Float32Array(n * 3), heat = new Float32Array(n * 3), c = new THREE.Color();
+    const extra = run.buffers.extra ? view(buf, run.buffers.extra) : null;
+    for (let i = 0; i < n; i++) {
+      CLAY.toArray(base, i * 3);
+      // saturate at 2% of the diagonal (byte 255 = cutoff 5%)
+      if (extra) c.copy(CLAY).lerp(SHU, Math.min(1, extra[i] / 255 * S.cutoff / 0.02)).toArray(heat, i * 3);
+    }
+    return { g, base, heat: extra ? heat : base, missing: run.buffers.missing ? view(buf, run.buffers.missing) : null };
+  });
+  runCache.set(run.id, p);
+  return p;
+}
+
+async function select(run, btn) {
+  current = run;
+  document.querySelectorAll('.run').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+  renderStats(run); renderPolar(run); renderLegend(run); buildCameras(run); buildShell(run);
+  const d = await loadRun(run);
+  if (current !== run) return;
+  if (model) scene.remove(model);
+  model = null;
+  if (d) {
+    applyColors(d);
+    model = new THREE.Mesh(d.g, modelMat);
+    model.visible = $('t-model').checked;
+    scene.add(model);
+    if (refGeom && d.missing) refGeom.setAttribute('missing', new THREE.BufferAttribute(d.missing, 1, true));
+  }
+  updateMissingShare();
+}
+
+function applyColors(d) {
+  const on = hasRef && $('t-error').checked;
+  d.g.setAttribute('color', new THREE.BufferAttribute(on ? d.heat : d.base, 3));
+  $('error-legend').hidden = !on;
+}
+
+// ---------------------------------------------------------------- text column
+function renderRuns() {
+  const box = $('runs');
+  $('runs-section').hidden = S.runs.length < 2;
+  return S.runs.map(r => {
+    const [name, kind] = describe(r.id);
+    const b = document.createElement('button');
+    b.className = 'run'; b.type = 'button'; b.setAttribute('aria-pressed', 'false'); b.title = r.id;
+    b.innerHTML = `<span class="name">${name}</span><span class="meta">${r.aligned} / ${S.reference_images} photos${kind ? ' · ' + kind : ''}</span>
+      <span class="err" title="Geometric error (v3 label), % of reference diagonal">${pct(r.label, 2)}</span>`;
+    b.addEventListener('click', () => select(r, b));
+    box.appendChild(b);
+    return b;
+  });
+}
+
+function renderStats(run) {
+  const rows = hasRef ? [
+    ['Geometric error', `${pct(run.label, 2)} <small>v3, of diag.</small>`],
+    ['Completeness', `${pct(run.completeness, 1)} <small>τ = 1%</small>`],
+    ['Accuracy', `${pct(run.accuracy, 1)} <small>τ = 1%</small>`],
+    ['Missing RMSE', `${pct(run.missing_rmse, 2)}`],
+    ['Extra RMSE', `${pct(run.extra_rmse, 2)}`],
+    ['Registration QC', run.qc ?? '—'],
+    ['Photos aligned', `${run.aligned} <small>/ ${S.reference_images} in reference</small>`],
+    ['Reprojection RMSE', fixed(run.reprojection_px, 2, ' px')],
+    ['Mesh faces', int(run.faces)],
+    ['Build time', mins(run.build_seconds)],
+  ] : [
+    ['Photos aligned', `${run.aligned} <small>/ ${run.images}</small>`],
+    ['Failed to align', String(run.failed.length)],
+    ['Reprojection RMSE', fixed(run.reprojection_px, 2, ' px')],
+    ['Valid tie points', int(run.tie_points)],
+    ['Mesh faces', run.file ? int(run.faces) : 'not built'],
+    ['Build time', mins(run.build_seconds)],
+  ];
+  $('stats').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+
+  // Where reprojection error and geometry disagree, say so: that is the point of this project.
+  const note = $('note');
+  note.hidden = true;
+  if (!hasRef || S.runs.length < 3) return;
+  const byRep = S.runs.filter(r => r.reprojection_px != null).sort((a, b) => a.reprojection_px - b.reprojection_px);
+  const repRank = byRep.indexOf(run), geoRank = S.runs.indexOf(run), n = S.runs.length;
+  if (repRank === 0 && geoRank >= n - 2) {
+    note.textContent = `Lowest reprojection error of all ${n} runs, yet ${geoRank === n - 1 ? 'the largest' : 'one of the largest'} geometric errors. Fewer photos leave fewer inconsistent observations; they do not give better coverage.`;
+    note.hidden = false;
+  } else if (geoRank === 0 && repRank === byRep.length - 1) {
+    note.textContent = `Highest reprojection error of all ${n} runs, yet the most accurate mesh.`;
+    note.hidden = false;
+  }
+}
+
+function renderPolar(run) {
+  const svg = $('polar'), { az_edges: az, el_edges: el } = S.grid, cov = run.coverage;
+  const elMin = el[0], elMax = el[el.length - 1];
+  const rOf = e => 100 - (e - elMin) / (elMax - elMin) * 76;   // low elevation outside, high inside
+  const xy = (a, r) => [r * Math.cos(a * Math.PI / 180), -r * Math.sin(a * Math.PI / 180)];
+  const arc = (a0, a1, r0, r1) => {
+    const [x0, y0] = xy(a0, r0), [x1, y1] = xy(a1, r0), [x2, y2] = xy(a1, r1), [x3, y3] = xy(a0, r1);
+    return `M${x0},${y0} A${r0},${r0} 0 0 0 ${x1},${y1} L${x2},${y2} A${r1},${r1} 0 0 1 ${x3},${y3} Z`;
+  };
+  let s = '';
+  for (let b = 0; b < el.length - 1; b++) for (let a = 0; a < az.length - 1; a++) {
+    const m = cov.missing[b][a], nv = cov.never[b][a];
+    const d = arc(az[a], az[a + 1], rOf(el[b]), rOf(el[b + 1]));
+    s += m ? `<path d="${d}" fill="${C.shu}" fill-opacity="0.14" stroke="${C.hair}" stroke-width="0.6"/>`
+           : `<path d="${d}" fill="${nv ? C.hair : 'none'}" fill-opacity="${nv ? 0.35 : 0}" stroke="${C.hair}" stroke-width="0.6"/>`;
+  }
+  for (const a of [0, 90, 180, 270]) {
+    const [x, y] = xy(a, 112);
+    s += `<text x="${x}" y="${y + 3}" text-anchor="middle" fill="${C.mute}" font-size="8" font-family="${css('--font').replace(/"/g, "'")}">${a}°</text>`;
+  }
+  run.cameras.forEach((st, i) => {
+    const [x, y, z] = S.camera_positions[i], h = Math.hypot(x, y, z);
+    const a = (Math.atan2(-z, x) * 180 / Math.PI + 360) % 360, e = Math.asin(y / h) * 180 / Math.PI;
+    const [px, py] = xy(a, rOf(Math.min(elMax, Math.max(elMin, e))));
+    s += st === 'used' ? `<circle cx="${px}" cy="${py}" r="1.6" fill="${C.ink}"/>`
+       : st === 'removed' ? `<circle cx="${px}" cy="${py}" r="1.8" fill="none" stroke="${C.mute}" stroke-width="0.7"/>`
+       : `<circle cx="${px}" cy="${py}" r="2" fill="${C.shu}"/>`;
+  });
+  svg.innerHTML = s;
+
+  const cnt = run.cameras.reduce((o, st) => (o[st]++, o), { used: 0, removed: 0, unaligned: 0 });
+  const anyGap = cov.missing.flat().some(Boolean);
+  const where = cov.summary.split(/\s+\d+ cameras? (did not|failed)/)[0]
+    .replace(/^Missing vs reference: |^Missing: /, '').replace(/ \(reference angles\)/, '');
+  const failed = hasRef ? cnt.unaligned : run.failed.length;
+  let text = hasRef ? `${cnt.removed} reference photos removed. ` : '';
+  if (failed) text += `<em>${failed} failed to align</em>. `;
+  text += anyGap ? `<em>Gaps</em> (cells with fewer than 2 cameras${hasRef ? ' where the reference has 2 or more' : ''}): ${where}.`
+                 : hasRef ? 'Every angle the reference saw is still covered.' : 'Every cell has 2 or more cameras.';
+  text += ' Outer ring is low elevation, inner ring high.';
+  $('gaps').innerHTML = text;
+}
+
+function renderLegend(run) {
+  const items = [[C.ink2, '', 'camera used']];
+  if (run.cameras.includes('removed')) items.push([C.mute, 'dash', 'camera removed']);
+  if (run.cameras.includes('unaligned')) items.push([C.shu, '', 'failed to align']);
+  if (hasRef) items.push([C.shu, 'fill', 'missing vs reference']);
+  $('legend').innerHTML = items.map(([k, cls, t]) => `<span><i class="${cls}" style="--k:${k}"></i>${t}</span>`).join('');
+}
+
+function updateMissingShare() {
+  const t = +$('thresh').value;
+  $('thresh-out').textContent = t.toFixed(1) + '%';
+  missingMat.uniforms.uThresh.value = t / 100 / S.cutoff;
+  const attr = refGeom && refGeom.getAttribute('missing');
+  if (!attr) { $('missing-share').textContent = ''; return; }
+  const lim = t / 100 / S.cutoff * 255; let n = 0;
+  for (const v of attr.array) if (v > lim) n++;
+  $('missing-share').textContent = `${pct(n / attr.array.length, 1)} of vertices`;
+}
+
+// ---------------------------------------------------------------- views
+let fitR = 0.6, fitC = new THREE.Vector3();
+function setView(azDeg, elDeg) {
+  const a = THREE.MathUtils.degToRad(azDeg), e = THREE.MathUtils.degToRad(elDeg), d = fitR / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  controls.target.copy(fitC);
+  camera.position.set(fitC.x + d * Math.cos(e) * Math.cos(a), fitC.y + d * Math.sin(e), fitC.z - d * Math.cos(e) * Math.sin(a));
+  controls.update();
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  const v = b.dataset.view;
+  if (v === 'reset') setView(...homeView); else setView(...v.split(',').map(Number));
+}));
+$('save').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${objectName}-${current.id}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+});
+
+// ---------------------------------------------------------------- interaction
+const toggles = { 't-model': () => model, 't-missing': () => missingMesh, 't-cams': () => camGroup, 't-shell': () => shellGroup };
+for (const [id, get] of Object.entries(toggles))
+  $(id).addEventListener('change', e => { const o = get(); if (o) o.visible = e.target.checked; });
+$('t-error').addEventListener('change', async () => { const d = await loadRun(current); if (d) applyColors(d); });
+$('thresh').addEventListener('input', updateMissingShare);
+$('layers').addEventListener('submit', e => e.preventDefault());
+
+const ray = new THREE.Raycaster(); ray.params.Points.threshold = 0.01;
+const tip = $('tip'), mouse = new THREE.Vector2();
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!pointCloud || !camGroup.visible) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObject(pointCloud)[0];
+  if (hit) {
+    tip.textContent = `${S.camera_labels[hit.index]} · ${stateName[current.cameras[hit.index]]}`;
+    tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.style.display = 'block';
+  } else tip.style.display = 'none';
+});
+renderer.domElement.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+
+// ---------------------------------------------------------------- start
+async function start() {
+  await pickObject();
+  const r = await fetch(new URL('scene.json', DATA), { cache: 'no-store' });
+  if (!r.ok) throw new Error(`no export named "${objectName}" (run python -m bd3d_quality.viewer_export)`);
+  S = await r.json();
+  hasRef = !!S.reference_mesh;
+  lo = S.bounds[0]; span = S.bounds[1].map((h, i) => h - lo[i]);
+  document.title = `${S.title} · BD3D`;
+  $('title').textContent = S.title;
+  const run0 = S.runs[0];
+  $('lede').textContent = hasRef
+    ? (S.runs.length > 1
+        ? `Each run rebuilds the object from a subset of the ${S.reference_images} photos in ${S.reference}. Red marks surface ${S.reference} recovered and the run did not.`
+        : `${run0.id} registered onto ${S.reference} (${S.reference_images} photos). Red marks surface the reference recovered and this build did not.`)
+    : `Built from ${run0.images} photos with no reference to compare against. Cameras and coverage are shown in the build's own frame; red marks coverage gaps and photos that failed to align.`;
+  $('foot').textContent = `One unit = ${S.unit}. ` +
+    (hasRef ? `Candidate registered with the v3 scorer; distances quantised to 1/255 of ${pct(S.cutoff, 0)}.` : '') +
+    ` Export: ${S.name}.`;
+  document.querySelectorAll('[data-needs="ref"]').forEach(el => { el.hidden = !hasRef; });
+
+  if (hasRef) {
+    refGeom = geometryFrom(await bin(S.reference_mesh.file), S.reference_mesh.buffers);
+    missingMesh = new THREE.Mesh(refGeom, missingMat); missingMesh.renderOrder = 2;
+    missingMesh.visible = $('t-missing').checked; scene.add(missingMesh);
+  }
+
+  const buttons = renderRuns();
+  const first = S.runs.length - 1;     // open on the run with the largest error
+  await select(S.runs[first], buttons[first]);
+
+  // Fit the view to the object (or, with no mesh, to the cameras).
+  const fitGeom = refGeom || model?.geometry;
+  const box = new THREE.Box3();
+  if (fitGeom) { fitGeom.computeBoundingBox(); box.copy(fitGeom.boundingBox); }
+  else S.camera_positions.forEach(p => box.expandByPoint(new THREE.Vector3(...p)));
+  box.getCenter(fitC); fitR = box.getSize(new THREE.Vector3()).length() / 2 * (fitGeom ? 1.15 : 0.8);
+  controls.minDistance = fitR * 0.6; controls.maxDistance = fitR * 14;
+
+  // A single hairline circle as the ground.
+  const R = fitGeom ? Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 0.75 : fitR;
+  const circle = new THREE.BufferGeometry().setFromPoints(
+    Array.from({ length: 129 }, (_, i) => new THREE.Vector3(R * Math.cos(i / 64 * Math.PI), box.min.y - 0.005, R * Math.sin(i / 64 * Math.PI))));
+  ground = new THREE.Line(circle, new THREE.LineBasicMaterial({ color: C.hair }));
+  scene.add(ground);
+
+  resize();
+  homeView = [35, 22];
+  setView(...homeView);
+  $('loading').remove();
+  S.runs.forEach(r => loadRun(r));   // warm the rest
+}
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+
+start().catch(err => {
+  $('loading').textContent = location.protocol === 'file:'
+    ? 'Open this through the local server: python -m bd3d_quality.viewer_export serve'
+    : `Could not load the data: ${err.message}`;
+  $('title').textContent = 'Nothing to show';
+  console.error(err);
+});
+</script>
+</body>
+</html>

@@ -13,6 +13,9 @@ Stop rules:
                         ('outcome': 'alignment_failed'); the driver continues with the next manifest.
   - any other failure -> stop and report.
 The watchdog's stdout/stderr go to <run>-watchdog.log, opened before launch.
+After each successful run the web viewer export is written (viewer/data/<run>/, see
+bd3d_quality.viewer_export): the run on its own, or against --viewer-reference when given.
+It runs as a separate process; a failed export is reported and never stops the batch (--no-viewer skips it).
 Outputs are never deleted. Limit overrides and their reasons are recorded by the watchdog.
 
   python3 scripts/run_watched.py --manifests experiments/pahma-5-613/ref145.json \
@@ -71,6 +74,24 @@ def classify(res, run):
     return 'failed'
 
 
+def export_viewer(out, a):
+    """Write the web viewer's data for a finished run; report, never raise."""
+    if a.no_viewer:
+        return
+    cmd = [sys.executable, '-B', '-m', 'bd3d_quality.viewer_export', 'build', str(out)]
+    if a.viewer_reference:
+        cmd += ['--reference', str(a.viewer_reference.resolve())]
+    log_path = out.with_name(out.name + '-viewer.log')
+    with log_path.open('w') as log:
+        proc = subprocess.run(cmd, cwd=REPO, stdout=log, stderr=subprocess.STDOUT,
+                              env={**os.environ, 'PYTHONPATH': str(REPO / 'src')})
+    if proc.returncode == 0:
+        print(f'[{stamp()}] viewer: {out.name} -> python -m bd3d_quality.viewer_export serve --object {out.name}',
+              flush=True)
+    else:
+        print(f'[{stamp()}] viewer export failed for {out.name} (see {log_path.name}); continuing', flush=True)
+
+
 def attempt(manifest, out, a):
     cmd = [PY, '-B', '-m', 'bd3d_quality.resource_monitor', '--output', str(out), '--seconds', str(a.seconds)]
     if a.seconds_note:
@@ -120,6 +141,8 @@ def main(argv=None):
     ap.add_argument('--rss-gib', type=float, default=3)
     ap.add_argument('--memory-note')
     ap.add_argument('--image-quality-cache', type=Path, help='reuse per-image quality instead of analyzeImages')
+    ap.add_argument('--viewer-reference', type=Path, help='reference run folder for the web viewer export')
+    ap.add_argument('--no-viewer', action='store_true', help='do not write the web viewer export')
     a = ap.parse_args(argv)
     caps = a.seconds * len(a.manifests) if len(a.seconds) == 1 else a.seconds
     if len(caps) != len(a.manifests):
@@ -136,6 +159,7 @@ def main(argv=None):
                 sys.exit(3)
             result = attempt(manifest.resolve(), out, a)
             if result in ('ok', 'ok_unrecorded'):
+                export_viewer(out, a)
                 break
             if result == 'alignment_failed':
                 print(f'RESULT: {name} -> alignment failed (recorded; continuing)', flush=True)

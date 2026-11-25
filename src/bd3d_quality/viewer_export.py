@@ -136,6 +136,16 @@ def run_facts(run_dir, label_row=None):
     }
 
 
+def camera_extra(cameras_csv, labels):
+    """Optional per-camera values from cameras.csv for the viewer's camera table, in the order of labels
+    (reprojection RMSE, tie-point projections, image quality; missing values are left out)."""
+    cols = {'reprojection_rmse_px': 'reprojection_px', 'n_projections': 'projections', 'image_quality': 'image_quality'}
+    with open(cameras_csv, newline='') as f:
+        rows = {r['label']: r for r in csv.DictReader(f)}
+    return [{key: _num(rows.get(l, {}).get(col)) for col, key in cols.items() if _num(rows.get(l, {}).get(col)) is not None}
+            for l in labels]
+
+
 def read_labels(folder):
     path = Path(folder) / 'labels-all.csv'
     if not path.is_file():
@@ -225,6 +235,7 @@ def export_build(run_dir, reference_dir=None, *, out=DEFAULT_OUT, name=None, tit
         'camera_labels': [l for l, ok in zip(labels, aligned) if ok],
         'camera_positions': np.round(cams, 5).tolist(),
         'camera_views': np.round(dirs_to_display(V[aligned], B), 5).tolist(),
+        'camera_extra': camera_extra(run_dir / 'cameras.csv', [l for l, ok in zip(labels, aligned) if ok]),
         'grid': {'az_edges': cov.az_edges.tolist(), 'el_edges': cov.el_edges.tolist(), 'counts': cov.counts.tolist()},
         'runs': [run],
     }
@@ -304,6 +315,7 @@ def export_comparison(run_dirs, reference_dir, *, out=DEFAULT_OUT, name, title=N
         'camera_labels': ref_cams,
         'camera_positions': np.round(to_display(rP[r_aligned], centre, B, ref.diag), 5).tolist(),
         'camera_views': np.round(dirs_to_display(rV[r_aligned], B), 5).tolist(),
+        'camera_extra': camera_extra(ref_dir / 'cameras.csv', ref_cams),
         'grid': {'az_edges': ref_cov.az_edges.tolist(), 'el_edges': ref_cov.el_edges.tolist(),
                  'counts': ref_cov.counts.tolist()},
         'runs': sorted(scene_runs, key=lambda r: r['label']),

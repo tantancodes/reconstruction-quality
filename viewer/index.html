@@ -3,166 +3,79 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BD3D Reconstruction Viewer</title>
-<link rel="stylesheet" href="tokens.css">
-<style>
-/* Layout: top bar; three columns (runs · 3D view card · inspector card) on the page background.
-   Tokens come from tokens.css, shared with the capture app. */
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-html, body { height: 100%; margin: 0; }
-body {
-  background: var(--page); color: var(--text); font: 14px/1.5 var(--font);
-  font-variant-numeric: tabular-nums; display: grid; grid-template-rows: auto 1fr; overflow: hidden;
-}
-button, select { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-
-/* ---------------------------------------------------------------- top bar */
-.top { display: flex; align-items: center; gap: 20px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--page); }
-.brand { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
-.brand b { font-size: 16px; color: var(--ink); letter-spacing: -.01em; }
-.brand span { color: var(--text-2); }
-.top select {
-  appearance: none; background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b6b66' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;
-  border: 1px solid var(--line); border-radius: 999px; padding: 6px 34px 6px 14px; cursor: pointer; max-width: 46vw;
-}
-.grow { flex: 1; }
-.text-btn { all: unset; cursor: pointer; color: var(--ink); font-weight: 500; padding: 6px 2px; }
-.text-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
-.text-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
-
-/* ---------------------------------------------------------------- columns */
-.layout { display: grid; grid-template-columns: 290px minmax(0, 1fr) 320px; gap: 20px; padding: 20px 24px 24px; min-height: 0; }
-.col { min-height: 0; overflow-y: auto; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
-h1 { font-size: 26px; line-height: 1.15; color: var(--ink); margin: 4px 0 6px; font-weight: 700; letter-spacing: -.02em; text-wrap: balance; }
-.sub { color: var(--text-2); margin: 0 0 18px; }
-.label { font-size: 12px; color: var(--text-2); font-weight: 500; margin: 0 0 10px; }
-
-.runs { display: grid; gap: 10px; }
-.run {
-  all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px;
-  padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-}
-.run:hover { border-color: #cfccc4; }
-.run[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
-.run:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.run .name { font-weight: 600; color: var(--ink); }
-.run .meta { color: var(--text-2); font-size: 12.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.run .err { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-size: 17px; font-weight: 600; color: var(--ink); text-align: right; }
-.run .err small { display: block; font-size: 11px; font-weight: 400; color: var(--text-2); }
-
-.tag { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 500; white-space: nowrap;
-       background: var(--neutral-soft); color: var(--text-2); }
-.tag.good { background: var(--green-soft); color: var(--green); }
-.tag.bad { background: var(--red-soft); color: var(--red); }
-.tag.caution { background: var(--amber-soft); color: var(--amber); }
-
-/* ---------------------------------------------------------------- 3D view card */
-.view { display: flex; flex-direction: column; padding: 16px; gap: 14px; min-height: 0; }
-.panel { background: var(--panel); border-radius: 12px; position: relative; overflow: hidden; }
-.view .panel { flex: 1; min-height: 280px; }
-#gl { position: absolute; inset: 0; }
-#gl canvas { display: block; outline: none; }
-#loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-2); padding: 0 24px; text-align: center; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.chips .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
-.chip {
-  all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px;
-  border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text-2); font-size: 13px; white-space: nowrap;
-}
-.chip:hover { color: var(--ink); border-color: #cfccc4; }
-.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
-.chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--k, var(--camera)); opacity: .35; }
-.chip[aria-pressed="true"] i { opacity: 1; }
-.slider { display: flex; gap: 12px; align-items: center; color: var(--text-2); font-size: 13px; flex-wrap: wrap; }
-.slider input { flex: 1; min-width: 140px; accent-color: var(--red); }
-.slider output { color: var(--ink); font-weight: 500; min-width: 3.5em; }
-.scale { display: flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12px; }
-.scale b { width: 120px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--mesh), var(--red)); }
-
-/* ---------------------------------------------------------------- inspector */
-.inspector { padding: 24px; display: flex; flex-direction: column; gap: 18px; }
-.insp-head h2 { margin: 0 0 8px; font-size: 20px; color: var(--ink); letter-spacing: -.01em; }
-.tags { display: flex; gap: 6px; flex-wrap: wrap; }
-dl { display: grid; grid-template-columns: auto 1fr; gap: 0; margin: 0; }
-dt, dd { margin: 0; padding: 8px 0; border-top: 1px solid var(--line); }
-dt { color: var(--text-2); padding-right: 12px; }
-dd { text-align: right; color: var(--ink); font-weight: 500; }
-dd small { color: var(--text-2); font-weight: 400; }
-.note { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--amber-soft); color: var(--text); font-size: 13px; }
-.note b { color: var(--amber); display: block; margin-bottom: 2px; }
-.inspector .panel { padding: 10px; }
-#polar { width: 100%; height: auto; display: block; max-width: 250px; margin: 0 auto; }
-.caption { color: var(--text-2); font-size: 12.5px; margin: 8px 0 0; }
-.legend { display: grid; gap: 7px; font-size: 12.5px; color: var(--text); }
-.legend span { display: flex; align-items: center; gap: 10px; }
-.legend svg { flex: none; }
-
-#tip { position: fixed; pointer-events: none; padding: 6px 10px; font-size: 12px; background: var(--ink); color: #fff; border-radius: 8px; transform: translate(12px, 12px); display: none; }
-
-@media (max-width: 1100px) {
-  body { overflow: auto; height: auto; }
-  .layout { grid-template-columns: 1fr; padding: 16px; }
-  .view .panel { min-height: 60vh; }
-  .col { overflow: visible; }
-  .top { padding: 12px 16px; flex-wrap: wrap; }
-}
-</style>
+<title>BD3D viewer: camera coverage and reconstruction quality</title>
+<link rel="stylesheet" href="viewer.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand"><b>BD3D</b><span>Reconstruction quality</span></div>
-  <select id="object" aria-label="Object"></select>
+<header class="bar">
+  <span class="app">BD3D viewer</span>
+  <button id="open-folder" title="Open a build folder (cameras.csv, raw-mesh.obj), an export folder (scene.json) or a folder of builds. Read locally; nothing is uploaded.">Open folder…</button>
+  <button id="open-file" title="Open one cameras.csv">Open cameras.csv…</button>
+  <input id="pick-folder" type="file" webkitdirectory multiple hidden>
+  <input id="pick-file" type="file" accept=".csv" hidden>
+  <span class="sep"></span>
+  <label for="ref">Reference</label>
+  <select id="ref" title="Compare this build's cameras with a reference build of the same capture (shared photo labels)"></select>
   <span class="grow"></span>
-  <button class="text-btn" id="save" type="button">Save PNG</button>
+  <label for="shot-scale">Image</label>
+  <select id="shot-scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select>
+  <button id="shot" title="Save the viewport as PNG">Save view</button>
+  <a href="https://github.com/tantancodes/reconstruction-quality/blob/main/viewer/README.md" target="_blank" rel="noopener" style="color:inherit">Help</a>
 </header>
 
-<div class="layout">
-  <aside class="col" aria-label="Builds">
-    <h1 id="title">Loading</h1>
-    <p class="sub" id="lede"></p>
-    <p class="label" id="runs-label">Builds, best to worst</p>
-    <div class="runs" id="runs"></div>
-  </aside>
-
-  <main class="card view">
-    <div class="panel"><div id="gl"></div><div id="loading">Loading…</div></div>
-    <div class="chips" role="toolbar" aria-label="View and layers">
-      <button class="chip" type="button" data-view="35,22" aria-pressed="true">Default</button>
-      <button class="chip" type="button" data-view="0,12" aria-pressed="false">Az 0°</button>
-      <button class="chip" type="button" data-view="90,12" aria-pressed="false">Az 90°</button>
-      <button class="chip" type="button" data-view="0,89" aria-pressed="false">Top</button>
-      <span class="sep"></span>
-      <button class="chip" type="button" data-layer="model" aria-pressed="true"><i style="--k: var(--mesh)"></i>Mesh</button>
-      <button class="chip" type="button" data-layer="missing" data-needs="ref" aria-pressed="true"><i style="--k: var(--red)"></i>Missing geometry</button>
-      <button class="chip" type="button" data-layer="error" data-needs="ref" aria-pressed="false"><i style="--k: var(--red)"></i>Surface error</button>
-      <button class="chip" type="button" data-layer="cams" aria-pressed="true"><i style="--k: var(--camera)"></i>Cameras</button>
-      <button class="chip" type="button" data-layer="shell" aria-pressed="false"><i style="--k: var(--camera)"></i>Coverage shell</button>
+<div class="main" id="main">
+  <nav class="side" aria-label="Datasets">
+    <h3>Datasets</h3>
+    <ul class="tree" id="tree"></ul>
+    <h3>Display</h3>
+    <div class="sec" id="display">
+      <div class="chk"><input type="checkbox" id="L-frusta" checked><label for="L-frusta">Camera frustums</label></div>
+      <div class="chk"><input type="checkbox" id="L-rays"><label for="L-rays">Optical axes to centre</label></div>
+      <div class="chk"><input type="checkbox" id="L-shell"><label for="L-shell">Coverage cells (az × el)</label></div>
+      <div class="chk"><input type="checkbox" id="L-refcams" checked><label for="L-refcams">Reference-only cameras</label></div>
+      <div class="chk"><input type="checkbox" id="L-mesh" checked><label for="L-mesh">Mesh</label></div>
+      <div class="chk"><input type="checkbox" id="L-missing" checked><label for="L-missing">Missing reference surface</label></div>
+      <div class="chk"><input type="checkbox" id="L-error"><label for="L-error">Surface error colouring</label></div>
+      <div class="chk"><input type="checkbox" id="L-axes" checked><label for="L-axes">Frame axes</label></div>
+      <div class="row"><label for="color-by">Colour cameras</label>
+        <select id="color-by">
+          <option value="state">by state</option><option value="nnAngle">nearest-neighbour angle</option>
+          <option value="offAxis">off-axis angle</option><option value="elevation">elevation</option>
+          <option value="reprojection_px">reprojection RMSE</option><option value="projections">projections</option>
+          <option value="image_quality">image quality</option>
+        </select></div>
+      <div class="row"><label for="fsize">Frustum size</label><input type="range" id="fsize" min="0.005" max="0.08" step="0.001" value="0.022"><span class="num" id="fsize-v"></span></div>
+      <div class="row" id="thresh-row"><label for="thresh">Gap depth ≥</label><input type="range" id="thresh" min="0.2" max="4" step="0.1" value="1"><span class="num" id="thresh-v"></span></div>
     </div>
-    <div class="slider" data-needs="ref">
-      <label for="thresh">Show gaps deeper than</label>
-      <input type="range" id="thresh" min="0.2" max="4" step="0.1" value="1">
-      <output id="thresh-out">1.0%</output>
-      <span id="missing-share"></span>
-    </div>
-    <div class="scale" id="error-legend" hidden>Surface error <b></b> 0 to 2% of the reference size</div>
-  </main>
+  </nav>
 
-  <aside class="card inspector col" aria-label="Selected build" aria-live="polite">
-    <div class="insp-head"><h2 id="run-name"></h2><div class="tags" id="run-tags"></div></div>
-    <dl id="props"></dl>
-    <p class="note" id="note" hidden></p>
-    <section>
-      <p class="label">Coverage from above</p>
-      <div class="panel"><svg id="polar" viewBox="-124 -124 248 248" role="img" aria-label="Top-down camera coverage"></svg></div>
-      <p class="caption" id="gaps"></p>
-    </section>
+  <section class="vp" id="vp" aria-label="3D viewport">
+    <div id="gl"></div>
+    <div class="vtools">
+      <div class="g"><button data-view="iso" title="Fit, oblique">Fit</button><button data-view="top" title="Look down the up axis">Top</button><button data-view="front">Az 0°</button><button data-view="side">Az 90°</button></div>
+      <button id="ortho" aria-pressed="false" title="Orthographic projection">Ortho</button>
+      <button id="look" disabled title="Place the view at the selected camera, looking along its optical axis (field of view not stored in cameras.csv: 50° shown)">Through camera</button>
+    </div>
     <div class="legend" id="legend"></div>
-  </aside>
+    <div class="vinfo" id="vinfo"></div>
+    <div class="empty" id="empty">Loading…</div>
+  </section>
+
+  <aside class="insp" id="insp" aria-label="Inspector"></aside>
+
+  <section class="dock" aria-label="Analysis">
+    <div class="grip" id="grip" title="Drag to resize"></div>
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="cameras" aria-selected="true">Cameras</button>
+      <button role="tab" data-tab="coverage" aria-selected="false">Coverage</button>
+      <button role="tab" data-tab="evaluation" aria-selected="false">Predicted vs measured</button>
+      <span class="grow"></span>
+      <span class="tools" id="tab-tools"></span>
+    </div>
+    <div class="pane" id="pane"></div>
+  </section>
 </div>
+<footer class="status" id="status"></footer>
 <div id="tip"></div>
 
 <script type="importmap">
@@ -171,493 +84,6 @@ dd small { color: var(--text-2); font-weight: 400; }
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-const $ = id => document.getElementById(id);
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const C = { ink: css('--ink'), text2: css('--text-2'), line: css('--line'), panel: css('--panel'), mesh: css('--mesh'),
-            cam: css('--camera'), red: css('--red'), green: css('--green'), amber: css('--amber') };
-
-// ---------------------------------------------------------------- which export
-let DATA, objectName;
-async function pickObject() {
-  const asked = new URLSearchParams(location.search).get('object') || decodeURIComponent(location.hash.slice(1));
-  let listing = [];
-  try { listing = await (await fetch(new URL('data/index.json', location.href), { cache: 'no-store' })).json(); } catch {}
-  objectName = asked || (listing[0] && listing[0].name) || 'pahma-5-613';
-  const sel = $('object');
-  if (!listing.some(o => o.name === objectName)) listing.unshift({ name: objectName, title: objectName });
-  for (const o of listing)
-    sel.add(new Option(o.mode === 'build' ? `${o.title} (no reference)` : o.title, o.name, false, o.name === objectName));
-  sel.addEventListener('change', () => { location.search = '?object=' + encodeURIComponent(sel.value); });
-  DATA = new URL(`data/${encodeURIComponent(objectName)}/`, location.href);
-}
-
-// Names for the experiment conditions (README: random subset, contiguous side, elevation band).
-function describe(id) {
-  let m;
-  if ((m = id.match(/^random(\d+)/))) return `Random ${m[1]} photos`;
-  if ((m = id.match(/^side(\d+)/))) return 'One side removed';
-  if ((m = id.match(/^drop_s(\d+)/))) return `Band ${m[1]} removed`;
-  if (id.startsWith('ref')) return 'Full capture';
-  return id;
-}
-const pct = (x, d = 1) => x == null ? '—' : (x * 100).toFixed(d) + '%';
-const fixed = (x, d, unit = '') => x == null ? '—' : x.toFixed(d) + unit;
-const int = x => x == null ? '—' : Math.round(x).toLocaleString('en-US');
-const mins = s => s == null ? '—' : s < 90 ? `${s.toFixed(0)} s` : `${(s / 60).toFixed(0)} min`;
-const tag = (text, kind = '') => `<span class="tag ${kind}">${text}</span>`;
-// Geometric error bands (fraction of the reference diagonal): under 1.2% good, under 2% caution.
-const quality = label => label == null ? null : label < 0.012 ? ['Good', 'good'] : label < 0.02 ? ['Fair', 'caution'] : ['Poor', 'bad'];
-const counts = run => run.cameras.reduce((o, st) => (o[st]++, o), { used: 0, removed: 0, unaligned: 0 });
-const failedCount = run => hasRef ? counts(run).unaligned : run.failed.length;
-
-// ---------------------------------------------------------------- renderer
-const gl = $('gl');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.setClearColor(C.panel, 1);
-gl.appendChild(renderer.domElement);
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = !matchMedia('(prefers-reduced-motion: reduce)').matches;
-controls.dampingFactor = 0.1;
-scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b4ac, 1.6));
-const key = new THREE.DirectionalLight(0xffffff, 1.5); key.position.set(1.2, 2.0, 1.4); scene.add(key);
-const fill = new THREE.DirectionalLight(0xffffff, 0.45); fill.position.set(-1.6, 0.4, -1.0); scene.add(fill);
-
-function resize() {
-  const w = gl.clientWidth, h = gl.clientHeight;
-  renderer.setSize(w, h); camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
-}
-new ResizeObserver(resize).observe(gl);
-
-// ---------------------------------------------------------------- data
-// Meshes ship as .bin; hosts that refuse .bin get the same bytes as a base64 JSON string (.b64.json).
-async function bin(file) {
-  const r = await fetch(new URL(file, DATA));
-  if (r.ok) return r.arrayBuffer();
-  const j = await fetch(new URL(file + '.b64.json', DATA));
-  if (!j.ok) throw new Error(`${file}: ${r.status}`);
-  const s = atob(await j.json()), out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out.buffer;
-}
-const view = (buf, b) => new ({ uint16: Uint16Array, uint32: Uint32Array, uint8: Uint8Array }[b.type])(buf, b.offset, b.count);
-
-let S, lo, span, hasRef;
-function geometryFrom(buf, buffers) {
-  const q = view(buf, buffers.positions), pos = new Float32Array(q.length);
-  for (let i = 0; i < q.length; i++) { const a = i % 3; pos[i] = lo[a] + q[i] / 65535 * span[a]; }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setIndex(new THREE.BufferAttribute(view(buf, buffers.indices), 1));
-  g.computeVertexNormals();
-  return g;
-}
-
-// ---------------------------------------------------------------- materials
-const MESH = new THREE.Color(C.mesh), RED = new THREE.Color(C.red);
-const modelMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0,
-  polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
-
-// Reference surface drawn only where this build lost it, in red, lightly shaded so the shape reads.
-const missingMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false, side: THREE.DoubleSide,
-  uniforms: { uThresh: { value: 0.2 }, uColor: { value: RED.clone() } },
-  vertexShader: `
-    attribute float missing; varying float vM; varying vec3 vN;
-    void main() {
-      vM = missing; vN = normalize(normalMatrix * normal);
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }`,
-  fragmentShader: `
-    uniform float uThresh; uniform vec3 uColor; varying float vM; varying vec3 vN;
-    void main() {
-      if (vM < uThresh) discard;
-      float depth = clamp((vM - uThresh) / max(1.0 - uThresh, 1e-3), 0.0, 1.0);
-      float shade = 0.78 + 0.22 * abs(normalize(vN).z);
-      gl_FragColor = vec4(uColor * shade, 0.6 + 0.35 * depth);
-      #include <colorspace_fragment>
-    }`,
-});
-
-// ---------------------------------------------------------------- scene objects
-let refGeom, missingMesh, model, camGroup, shellGroup, pointCloud;
-const runCache = new Map();
-let current, buttons = [];
-const layerOn = name => document.querySelector(`[data-layer="${name}"]`).getAttribute('aria-pressed') === 'true';
-
-function frustums(indices, color, opacity, size, dashed) {
-  const P = S.camera_positions, V = S.camera_views, pts = [], up = new THREE.Vector3(0, 1, 0);
-  for (const i of indices) {
-    const p = new THREE.Vector3(...P[i]), v = new THREE.Vector3(...V[i]).normalize();
-    const side = Math.abs(v.dot(up)) > 0.98 ? new THREE.Vector3(1, 0, 0) : up;
-    const r = new THREE.Vector3().crossVectors(v, side).normalize().multiplyScalar(size * 0.75);
-    const u = new THREE.Vector3().crossVectors(r, v).normalize().multiplyScalar(size * 0.5);
-    const c = p.clone().addScaledVector(v, size * 1.3);
-    const k = [c.clone().add(r).add(u), c.clone().sub(r).add(u), c.clone().sub(r).sub(u), c.clone().add(r).sub(u)];
-    for (const q of k) pts.push(p, q);
-    for (let j = 0; j < 4; j++) pts.push(k[j], k[(j + 1) % 4]);
-  }
-  const g = new THREE.BufferGeometry().setFromPoints(pts);
-  const mat = dashed
-    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: size * 0.2, gapSize: size * 0.16 })
-    : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-  const l = new THREE.LineSegments(g, mat);
-  if (dashed) l.computeLineDistances();
-  return l;
-}
-
-// Failed cameras get a filled red image plane so they read as solid at a glance.
-function solidFrusta(indices, color, size) {
-  const P = S.camera_positions, V = S.camera_views, pos = [], up = new THREE.Vector3(0, 1, 0);
-  for (const i of indices) {
-    const p = new THREE.Vector3(...P[i]), v = new THREE.Vector3(...V[i]).normalize();
-    const side = Math.abs(v.dot(up)) > 0.98 ? new THREE.Vector3(1, 0, 0) : up;
-    const r = new THREE.Vector3().crossVectors(v, side).normalize().multiplyScalar(size * 0.75);
-    const u = new THREE.Vector3().crossVectors(r, v).normalize().multiplyScalar(size * 0.5);
-    const c = p.clone().addScaledVector(v, size * 1.3);
-    const k = [c.clone().add(r).add(u), c.clone().sub(r).add(u), c.clone().sub(r).sub(u), c.clone().add(r).sub(u)];
-    for (let j = 0; j < 4; j++) pos.push(...p.toArray(), ...k[j].toArray(), ...k[(j + 1) % 4].toArray());
-    pos.push(...k[0].toArray(), ...k[1].toArray(), ...k[2].toArray(), ...k[0].toArray(), ...k[2].toArray(), ...k[3].toArray());
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
-}
-
-function shellPatch(az0, az1, el0, el1, R) {
-  const pts = [], idx = [], na = 10, ne = 4;
-  for (let i = 0; i <= ne; i++) for (let j = 0; j <= na; j++) {
-    const el = THREE.MathUtils.degToRad(el0 + (el1 - el0) * i / ne), az = THREE.MathUtils.degToRad(az0 + (az1 - az0) * j / na);
-    pts.push(R * Math.cos(el) * Math.cos(az), R * Math.sin(el), -R * Math.cos(el) * Math.sin(az));
-  }
-  for (let i = 0; i < ne; i++) for (let j = 0; j < na; j++) {
-    const a = i * (na + 1) + j, b = a + na + 1; idx.push(a, b, a + 1, a + 1, b, b + 1);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); g.setIndex(idx);
-  return g;
-}
-
-const dispose = grp => grp && (scene.remove(grp), grp.traverse(o => { o.geometry?.dispose(); o.material?.dispose?.(); }));
-const median = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
-
-function buildShell(run) {
-  dispose(shellGroup);
-  shellGroup = new THREE.Group();
-  const { az_edges: az, el_edges: el } = S.grid, cov = run.coverage;
-  const R = median(S.camera_positions.map(p => Math.hypot(...p))) * 1.12, gap = 0.5;
-  for (let b = 0; b < el.length - 1; b++) for (let a = 0; a < az.length - 1; a++) {
-    if (cov.never[b][a]) continue;
-    const miss = cov.missing[b][a];
-    const g = shellPatch(az[a] + gap, az[a + 1] - gap, el[b] + gap, el[b + 1] - gap, R);
-    const color = miss ? C.red : C.text2;
-    if (miss) shellGroup.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false })));
-    shellGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30),
-      new THREE.LineBasicMaterial({ color, transparent: true, opacity: miss ? 0.6 : 0.2 })));
-  }
-  shellGroup.visible = layerOn('shell');
-  scene.add(shellGroup);
-}
-
-const stateName = { used: 'used', removed: 'removed for this build', unaligned: 'failed to align' };
-function buildCameras(run) {
-  dispose(camGroup);
-  camGroup = new THREE.Group();
-  const by = { used: [], removed: [], unaligned: [] };
-  run.cameras.forEach((s, i) => by[s].push(i));
-  const size = 0.022;
-  camGroup.add(frustums(by.used, C.cam, 0.75, size));
-  camGroup.add(frustums(by.removed, C.red, 0.8, size, true));
-  camGroup.add(frustums(by.unaligned, C.red, 1, size));
-  camGroup.add(solidFrusta(by.unaligned, C.red, size));
-  const pos = [], col = [];
-  run.cameras.forEach((s, i) => {
-    pos.push(...S.camera_positions[i]);
-    new THREE.Color(s === 'used' ? C.cam : C.red).toArray(col, col.length);
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  pointCloud = new THREE.Points(g, new THREE.PointsMaterial({ size: 3, sizeAttenuation: false, vertexColors: true }));
-  camGroup.add(pointCloud);
-  camGroup.visible = layerOn('cams');
-  scene.add(camGroup);
-}
-
-async function loadRun(run) {
-  if (!run.file) return null;
-  if (runCache.has(run.id)) return runCache.get(run.id);
-  const p = bin(run.file).then(buf => {
-    const g = geometryFrom(buf, run.buffers), n = g.getAttribute('position').count;
-    const base = new Float32Array(n * 3), heat = new Float32Array(n * 3), c = new THREE.Color();
-    const extra = run.buffers.extra ? view(buf, run.buffers.extra) : null;
-    for (let i = 0; i < n; i++) {
-      MESH.toArray(base, i * 3);
-      // saturate at 2% of the diagonal (byte 255 = the 5% cutoff)
-      if (extra) c.copy(MESH).lerp(RED, Math.min(1, extra[i] / 255 * S.cutoff / 0.02)).toArray(heat, i * 3);
-    }
-    return { g, base, heat: extra ? heat : base, missing: run.buffers.missing ? view(buf, run.buffers.missing) : null };
-  });
-  runCache.set(run.id, p);
-  return p;
-}
-
-async function select(run, btn) {
-  current = run;
-  buttons.forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
-  renderInspector(run); renderPolar(run); buildCameras(run); buildShell(run);
-  const d = await loadRun(run);
-  if (current !== run) return;
-  if (model) scene.remove(model);
-  model = null;
-  if (d) {
-    applyColors(d);
-    model = new THREE.Mesh(d.g, modelMat);
-    model.visible = layerOn('model');
-    scene.add(model);
-    if (refGeom && d.missing) refGeom.setAttribute('missing', new THREE.BufferAttribute(d.missing, 1, true));
-  }
-  updateMissingShare();
-}
-
-function applyColors(d) {
-  const on = hasRef && layerOn('error');
-  d.g.setAttribute('color', new THREE.BufferAttribute(on ? d.heat : d.base, 3));
-  $('error-legend').hidden = !on;
-}
-
-// ---------------------------------------------------------------- runs column
-function renderRuns() {
-  const box = $('runs');
-  $('runs-label').textContent = S.runs.length > 1 ? 'Builds, best to worst' : 'Build';
-  return S.runs.map(r => {
-    const q = quality(r.label), failed = failedCount(r);
-    const b = document.createElement('button');
-    b.className = 'run'; b.type = 'button'; b.setAttribute('aria-pressed', 'false'); b.title = r.id;
-    b.innerHTML = `<span class="name">${describe(r.id)}</span>
-      <span class="meta">${r.aligned} / ${hasRef ? S.reference_images : r.images} photos
-        ${q ? tag(...q) : failed ? tag(`${failed} failed to align`, 'bad') : tag('No reference')}</span>
-      <span class="err">${hasRef ? pct(r.label, 2) : '—'}<small>${hasRef ? 'error' : 'no score'}</small></span>`;
-    b.addEventListener('click', () => select(r, b));
-    box.appendChild(b);
-    return b;
-  });
-}
-
-// ---------------------------------------------------------------- inspector
-function renderInspector(run) {
-  const n = counts(run), failed = failedCount(run), q = quality(run.label);
-  $('run-name').textContent = describe(run.id);
-  const tags = [];
-  if (hasRef) {
-    tags.push(tag(`vs reference ${S.reference}`));
-    if (run.qc) tags.push(tag(`QC ${run.qc}`, run.qc === 'pass' ? 'good' : 'bad'));
-  } else tags.push(tag('No reference'));
-  if (failed) tags.push(tag(`${failed} failed to align`, 'bad'));
-  $('run-tags').innerHTML = tags.join('');
-
-  const total = hasRef ? S.reference_images : run.images;
-  const rows = hasRef ? [
-    ['Geometric error', `${pct(run.label, 2)} ${q ? tag(...q) : ''}`],
-    ['Completeness', `${pct(run.completeness, 1)} <small>within 1%</small>`],
-    ['Accuracy', `${pct(run.accuracy, 1)} <small>within 1%</small>`],
-    ['Photos used / total', `${run.aligned} / ${total}`],
-    ['Failed to align', failed ? `<span style="color:var(--red)">${failed}</span>` : '0'],
-    ['Removed', String(n.removed)],
-    ['Reprojection RMSE', fixed(run.reprojection_px, 2, ' px')],
-    ['Build time', mins(run.build_seconds)],
-    ['QC', run.qc ? tag(run.qc === 'pass' ? 'Pass' : run.qc, run.qc === 'pass' ? 'good' : 'bad') : '—'],
-  ] : [
-    ['Photos used / total', `${run.aligned} / ${total}`],
-    ['Failed to align', failed ? `<span style="color:var(--red)">${failed}</span>` : '0'],
-    ['Reprojection RMSE', fixed(run.reprojection_px, 2, ' px')],
-    ['Valid tie points', int(run.tie_points)],
-    ['Mesh faces', run.file ? int(run.faces) : 'not built'],
-    ['Build time', mins(run.build_seconds)],
-  ];
-  $('props').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-
-  // Where the quick check (reprojection error) and the geometry disagree, say so.
-  const note = $('note');
-  note.hidden = true;
-  if (!hasRef || S.runs.length < 3) return;
-  const byRep = S.runs.filter(r => r.reprojection_px != null).sort((a, b) => a.reprojection_px - b.reprojection_px);
-  const repRank = byRep.indexOf(run), geoRank = S.runs.indexOf(run), N = S.runs.length;
-  if (repRank === 0 && geoRank >= N - 2) {
-    note.innerHTML = `<b>Quick check disagrees</b>Lowest reprojection error of all ${N} builds, yet ${geoRank === N - 1 ? 'the largest' : 'one of the largest'} geometric errors. Fewer photos leave fewer inconsistent observations, not better coverage.`;
-    note.hidden = false;
-  } else if (geoRank === 0 && repRank === byRep.length - 1) {
-    note.innerHTML = `<b>Quick check disagrees</b>Highest reprojection error of all ${N} builds, yet the most accurate mesh.`;
-    note.hidden = false;
-  }
-}
-
-// One marker per camera state, used in the coverage chart and the legend.
-const marker = (st, x, y) => st === 'used' ? `<circle cx="${x}" cy="${y}" r="2.2" fill="${C.cam}"/>`
-  : st === 'removed' ? `<circle cx="${x}" cy="${y}" r="2.6" fill="none" stroke="${C.red}" stroke-width="1" stroke-dasharray="1.6 1.2"/>`
-  : `<circle cx="${x}" cy="${y}" r="2.8" fill="${C.red}"/>`;
-
-function renderPolar(run) {
-  const svg = $('polar'), { az_edges: az, el_edges: el } = S.grid, cov = run.coverage;
-  const elMin = el[0], elMax = el[el.length - 1];
-  const rOf = e => 100 - (e - elMin) / (elMax - elMin) * 76;   // low elevation outside, high inside
-  const xy = (a, r) => [r * Math.cos(a * Math.PI / 180), -r * Math.sin(a * Math.PI / 180)];
-  const arc = (a0, a1, r0, r1) => {
-    const [x0, y0] = xy(a0, r0), [x1, y1] = xy(a1, r0), [x2, y2] = xy(a1, r1), [x3, y3] = xy(a0, r1);
-    return `M${x0},${y0} A${r0},${r0} 0 0 0 ${x1},${y1} L${x2},${y2} A${r1},${r1} 0 0 1 ${x3},${y3} Z`;
-  };
-  let s = '';
-  for (let b = 0; b < el.length - 1; b++) for (let a = 0; a < az.length - 1; a++) {
-    const m = cov.missing[b][a], nv = cov.never[b][a];
-    s += `<path d="${arc(az[a], az[a + 1], rOf(el[b]), rOf(el[b + 1]))}" fill="${m ? C.red : '#ffffff'}" fill-opacity="${m ? 0.18 : nv ? 0.3 : 0.85}" stroke="${C.panel}" stroke-width="1.2"/>`;
-  }
-  for (const a of [0, 90, 180, 270]) {
-    const [x, y] = xy(a, 113);
-    s += `<text x="${x}" y="${y + 3}" text-anchor="middle" fill="${C.text2}" font-size="8.5" font-family="-apple-system, Helvetica Neue, sans-serif">${a}°</text>`;
-  }
-  const order = { used: 0, removed: 1, unaligned: 2 };   // problems drawn on top
-  run.cameras.map((st, i) => [st, i]).sort((p, q) => order[p[0]] - order[q[0]]).forEach(([st, i]) => {
-    const [x, y, z] = S.camera_positions[i], h = Math.hypot(x, y, z);
-    const a = (Math.atan2(-z, x) * 180 / Math.PI + 360) % 360, e = Math.asin(y / h) * 180 / Math.PI;
-    s += marker(st, ...xy(a, rOf(Math.min(elMax, Math.max(elMin, e)))));
-  });
-  svg.innerHTML = s;
-
-  const where = cov.summary.split(/\s+\d+ cameras? (did not|failed)/)[0]
-    .replace(/^Missing vs reference: |^Missing: /, '').replace(/ \(reference angles\)/, '');
-  $('gaps').textContent = cov.missing.flat().some(Boolean)
-    ? `Red cells have fewer than 2 cameras${hasRef ? ' where the reference has 2 or more' : ''}: ${where}. Outer ring = low, inner ring = high.`
-    : (hasRef ? 'Every angle the reference covered is still covered.' : 'Every cell has 2 or more cameras.') + ' Outer ring = low, inner ring = high.';
-
-  const n = counts(run), failed = failedCount(run);
-  const frus = (st) => {
-    const stroke = st === 'used' ? C.cam : C.red;
-    return `<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="M1 7 L13 1 L13 13 Z" fill="${st === 'unaligned' ? C.red : 'none'}" stroke="${stroke}" stroke-width="1.2" ${st === 'removed' ? 'stroke-dasharray="2 1.6"' : ''}/><rect x="13" y="1" width="8" height="12" fill="${st === 'unaligned' ? C.red : 'none'}" stroke="${stroke}" stroke-width="1.2" ${st === 'removed' ? 'stroke-dasharray="2 1.6"' : ''}/></svg>`;
-  };
-  const items = [[frus('used'), `Camera used <small style="color:var(--text-2)">(${n.used})</small>`],
-                 [frus('unaligned'), `Failed to align <small style="color:var(--text-2)">(${failed})</small>`]];
-  if (hasRef) items.push([frus('removed'), `Removed for this build <small style="color:var(--text-2)">(${n.removed})</small>`],
-                         [`<svg width="22" height="14" aria-hidden="true"><rect x="2" y="2" width="18" height="10" rx="2" fill="${C.red}" fill-opacity=".75"/></svg>`, 'Missing geometry']);
-  $('legend').innerHTML = items.map(([icon, t]) => `<span>${icon}${t}</span>`).join('');
-}
-
-function updateMissingShare() {
-  const t = +$('thresh').value;
-  $('thresh-out').textContent = t.toFixed(1) + '%';
-  missingMat.uniforms.uThresh.value = t / 100 / S.cutoff;
-  const attr = refGeom && refGeom.getAttribute('missing');
-  if (!attr) { $('missing-share').textContent = ''; return; }
-  const lim = t / 100 / S.cutoff * 255; let n = 0;
-  for (const v of attr.array) if (v > lim) n++;
-  $('missing-share').textContent = `${pct(n / attr.array.length, 1)} of the reference surface`;
-}
-
-// ---------------------------------------------------------------- views and layers
-let fitR = 0.6, fitC = new THREE.Vector3();
-function setView(azDeg, elDeg) {
-  const a = THREE.MathUtils.degToRad(azDeg), e = THREE.MathUtils.degToRad(elDeg);
-  const d = fitR / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
-  controls.target.copy(fitC);
-  camera.position.set(fitC.x + d * Math.cos(e) * Math.cos(a), fitC.y + d * Math.sin(e), fitC.z - d * Math.cos(e) * Math.sin(a));
-  controls.update();
-}
-const viewChips = [...document.querySelectorAll('[data-view]')];
-viewChips.forEach(b => b.addEventListener('click', () => {
-  viewChips.forEach(c => c.setAttribute('aria-pressed', String(c === b)));
-  setView(...b.dataset.view.split(',').map(Number));
-}));
-controls.addEventListener('start', () => viewChips.forEach(c => c.setAttribute('aria-pressed', 'false')));
-
-const layerObject = { model: () => model, missing: () => missingMesh, cams: () => camGroup, shell: () => shellGroup };
-document.querySelectorAll('[data-layer]').forEach(b => b.addEventListener('click', async () => {
-  const on = b.getAttribute('aria-pressed') !== 'true';
-  b.setAttribute('aria-pressed', String(on));
-  const name = b.dataset.layer;
-  if (name === 'error') { const d = await loadRun(current); if (d) applyColors(d); return; }
-  const o = layerObject[name](); if (o) o.visible = on;
-}));
-$('thresh').addEventListener('input', updateMissingShare);
-
-$('save').addEventListener('click', () => {
-  renderer.render(scene, camera);
-  renderer.domElement.toBlob(blob => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${objectName}-${current.id}.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  });
-});
-
-const ray = new THREE.Raycaster(); ray.params.Points.threshold = 0.01;
-const tip = $('tip'), mouse = new THREE.Vector2();
-renderer.domElement.addEventListener('pointermove', e => {
-  if (!pointCloud || !camGroup.visible) return;
-  const r = renderer.domElement.getBoundingClientRect();
-  mouse.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
-  ray.setFromCamera(mouse, camera);
-  const hit = ray.intersectObject(pointCloud)[0];
-  if (hit) {
-    tip.textContent = `${S.camera_labels[hit.index]} · ${stateName[current.cameras[hit.index]]}`;
-    tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.style.display = 'block';
-  } else tip.style.display = 'none';
-});
-renderer.domElement.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
-
-// ---------------------------------------------------------------- start
-async function start() {
-  await pickObject();
-  const r = await fetch(new URL('scene.json', DATA), { cache: 'no-store' });
-  if (!r.ok) throw new Error(`no export named "${objectName}" (run python -m bd3d_quality.viewer_export)`);
-  S = await r.json();
-  hasRef = !!S.reference_mesh;
-  lo = S.bounds[0]; span = S.bounds[1].map((h, i) => h - lo[i]);
-  document.title = `${S.title} · BD3D`;
-  $('title').textContent = S.title;
-  $('lede').textContent = hasRef
-    ? `${S.runs.length > 1 ? 'Each build uses' : 'This build uses'} a subset of the ${S.reference_images} photos in the reference build ${S.reference}. Red shows surface the reference has and the build is missing.`
-    : `Built from ${S.runs[0].images} photos with no reference to compare against. Red shows coverage gaps and photos that failed to align.`;
-  document.querySelectorAll('[data-needs="ref"]').forEach(el => { el.hidden = !hasRef; });
-
-  if (hasRef) {
-    refGeom = geometryFrom(await bin(S.reference_mesh.file), S.reference_mesh.buffers);
-    missingMesh = new THREE.Mesh(refGeom, missingMat); missingMesh.renderOrder = 2;
-    missingMesh.visible = layerOn('missing'); scene.add(missingMesh);
-  }
-
-  buttons = renderRuns();
-  const first = S.runs.length - 1;     // open on the build with the largest error
-  await select(S.runs[first], buttons[first]);
-
-  const fitGeom = refGeom || model?.geometry;
-  const box = new THREE.Box3();
-  if (fitGeom) { fitGeom.computeBoundingBox(); box.copy(fitGeom.boundingBox); }
-  else S.camera_positions.forEach(p => box.expandByPoint(new THREE.Vector3(...p)));
-  box.getCenter(fitC); fitR = box.getSize(new THREE.Vector3()).length() / 2 * (fitGeom ? 1.15 : 0.8);
-  controls.minDistance = fitR * 0.6; controls.maxDistance = fitR * 14;
-
-  resize();
-  setView(35, 22);
-  $('loading').remove();
-  S.runs.forEach(r => loadRun(r));   // warm the rest
-}
-
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
-
-start().catch(err => {
-  $('loading').textContent = location.protocol === 'file:'
-    ? 'Open this through the local server: python -m bd3d_quality.viewer_export serve'
-    : `Could not load the data: ${err.message}`;
-  $('title').textContent = 'Nothing to show';
-  console.error(err);
-});
-</script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

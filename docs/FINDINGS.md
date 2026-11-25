@@ -186,6 +186,12 @@ The set models stay in a plausible range but underpredict the worst coffin build
 baseline predicts the other object's mean, which inflates the positive LOAO skill values. With
 two folds and 28 correlated builds, none of these differences is reliable.
 
+A later check separates level from ranking ([experiments/geometry-aware/REPORT.md](../experiments/geometry-aware/REPORT.md),
+finding 5). Inside each held-out object, Ridge ranks builds best (Spearman ρ +0.59 on 23 dog
+builds, +0.70 on 5 coffin builds), and the networks rank them weakly (+0.30 to +0.46). So
+the networks' lower leave-one-object-out MAE reflects predicting the right error level on the new
+object, not better ranking of its builds.
+
 ![Training loss of the pilot set models](figures/learning_curves_pilot.png)
 
 ## Next steps

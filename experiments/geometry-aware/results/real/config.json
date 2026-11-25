@@ -1,0 +1,42 @@
+{
+  "mode": "real",
+  "out": "experiments/geometry-aware/results",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "epochs": 400,
+  "nets": [
+    "pointnet",
+    "attention",
+    "geo",
+    "geo_inv",
+    "geo_shuf"
+  ],
+  "conditions": [
+    "global",
+    "localized",
+    "count_shift"
+  ],
+  "schemes": [
+    "LOGO",
+    "LOAO"
+  ],
+  "n_train": 3000,
+  "n_val": 600,
+  "n_test": 600,
+  "threads": 2,
+  "tag": "synthetic",
+  "lr": 0.001,
+  "cosine": false,
+  "n_runs": 28,
+  "groups": [
+    "arf-dog/gpu-d8",
+    "arf-dog/hist16-cpu",
+    "pahma-5-613/gpu-d8"
+  ],
+  "torch": "2.15.0+cu132"
+}

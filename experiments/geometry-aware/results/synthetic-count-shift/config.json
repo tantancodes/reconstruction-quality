@@ -1,0 +1,31 @@
+{
+  "mode": "synthetic",
+  "out": "experiments/geometry-aware/results",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "epochs": 150,
+  "nets": [
+    "pointnet",
+    "attention",
+    "geo",
+    "geo_inv"
+  ],
+  "conditions": [
+    "count_shift"
+  ],
+  "schemes": [
+    "LOGO",
+    "LOAO"
+  ],
+  "n_train": 2000,
+  "n_val": 600,
+  "n_test": 600,
+  "threads": 2,
+  "tag": "synthetic-count-shift",
+  "lr": 0.003,
+  "cosine": true,
+  "torch": "2.15.0+cu132"
+}
